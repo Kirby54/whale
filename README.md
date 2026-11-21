@@ -1,35 +1,46 @@
-# 🐋 Whale
+<p align="center">
+  <img src="assets/concepts/a-gemme-ocean-app.svg" width="120" alt="Logo Whale">
+</p>
 
-Journal de trading **local** et **open source**, inspiré d'Obsidian.
+<h1 align="center">Whale</h1>
 
-- Chaque trade est une note Markdown, stockée comme un vrai fichier `.md` dans ton coffre (par défaut `Documents\Whale`).
-- Tu relies tes notes avec `[[liens]]` : setups, actifs, émotions, erreurs.
-- La vue graphique 3D montre ton journal en forme de baleine.
-- Le tableau de bord calcule le taux de réussite, le R moyen, le profit factor et la courbe des gains.
-- Tu peux coller une capture de chart avec Ctrl+V : elle est rangée dans `attachments/`.
+<p align="center">
+  Journal de trading <b>local</b> et <b>open source</b> qui sert aussi de second cerveau.<br>
+  Tes notes Markdown, tes trades et tes conversations IA, reliés entre eux et visibles en forme de baleine.
+</p>
 
-### Second cerveau (v0.2)
+---
 
-- **Classement par l'IA** : le bouton « ✦ Classer avec l'IA » remplit le type, les tags, la date, le résumé, les propriétés du trade et ajoute des `[[liens]]`. Tu peux aussi classer d'un coup toutes les notes qui n'ont pas encore de tags.
-- **Demander** : pose une question à ton journal (« Pourquoi je perds sur TSLA ? »). L'IA lit les notes pertinentes et tes statistiques, puis répond en citant ses sources.
-- **Import** :
-  - dossiers de notes (Obsidian, export Markdown de Notion…) ;
-  - conversations ChatGPT ou Claude (`conversations.json`) ;
-  - trades d'un broker en CSV, avec le choix des colonnes et le calcul des R.
-- **Timeline** de toutes les notes et **tableau des trades** filtrable et triable.
+## Pourquoi Whale
 
-L'IA est au choix :
+- **Tes données restent chez toi.** Chaque note est un vrai fichier `.md` dans un dossier de ton ordinateur (le « coffre »). Pas de compte, pas de cloud imposé, et tu peux ouvrir tes notes avec n'importe quel éditeur.
+- **Pensé pour le trading.** Propriétés de trade (actif, setup, sens, entrée, stop, sortie, résultat en R), tableau de bord, courbe des gains, import des trades de ton broker.
+- **Un second cerveau.** Liens `[[ ]]`, rétroliens, tags, import de tes notes et de tes conversations ChatGPT ou Claude, et une IA qui répond à partir de ton journal.
 
-- **Claude**, avec ta clé API Anthropic. Le modèle par défaut est `claude-opus-5-5` et le repli automatique est activé.
-- **Ollama**, 100 % local.
+## Fonctionnalités
 
-La clé est enregistrée uniquement dans le dossier de configuration de l'app (`%APPDATA%\app.whale.journal\settings.json`), jamais dans le coffre. Les appels réseau passent par la partie Rust (`ai_request`).
+| | |
+|---|---|
+| **Cerveau** | Chaque note est un point dans une baleine 3D, coloré selon son dossier. Légende cliquable, histogramme du temps avec une fenêtre glissable. |
+| **Ton IA** | Panneau à droite du cerveau. Tu poses une question, l'IA répond en citant tes notes et allume dans le cerveau le dossier, la période et les notes concernés. |
+| **Éditeur** | Aperçu en direct comme Obsidian (CodeMirror 6). Autocomplétion des `[[liens]]` et des `#tags`, cases à cocher, captures de charts collées avec Ctrl+V. |
+| **Classement par l'IA** | Un clic remplit le type, les tags, la date, le résumé et les propriétés d'un trade, et ajoute des liens vers tes autres notes. |
+| **Import** | Dossiers Obsidian ou Notion (Markdown), conversations ChatGPT et Claude (`conversations.json`), trades en CSV (MT4/MT5, TradingView, Binance, IBKR…) avec calcul des R. |
+| **Vues** | Tableau de bord (taux de réussite, R moyen, profit factor), timeline, tableau des trades triable, recherche Ctrl+K. |
+
+## L'IA, à ton choix
+
+- **Claude**, avec ta propre clé API Anthropic (modèle par défaut : `claude-opus-5-5`). La clé est rangée dans le coffre-fort du système (Gestionnaire d'identifiants Windows), jamais dans tes notes.
+- **Ollama**, 100 % local et gratuit : rien ne sort de ton ordinateur.
+
+Pour répondre, Whale envoie au fournisseur choisi tes statistiques et les notes utiles à la question. Avec Ollama, tout reste sur ta machine.
 
 ## Format d'une note de trade
 
 ```markdown
 ---
 type: trade
+date: 2026-11-03
 actif: TSLA
 setup: Breakout
 sens: LONG
@@ -42,34 +53,49 @@ resultat: 1.9
 Cassure propre sur [[TSLA]], setup [[Breakout]].
 ```
 
-`type` peut valoir `trade`, `setup`, `actif`, `emotion` ou `note`. `resultat` est exprimé en R.
+`type` peut valoir `trade`, `setup`, `actif`, `emotion`, `conversation` ou `note`. `resultat` est exprimé en R (multiple du risque).
 
 ## Raccourcis
 
 | Raccourci | Action |
 |---|---|
+| Ctrl+K | Chercher une note ou demander à l'IA |
 | Ctrl+N | Nouveau trade |
-| Ctrl+E | Lecture / édition |
-| Ctrl+G | Vue graphique |
-| Ctrl+S | Enregistrer tout de suite (l'app enregistre aussi automatiquement) |
+| Ctrl+E | Basculer entre l'éditeur et la vue lecture |
+| Ctrl+G | Cerveau |
+| Ctrl+B / Ctrl+I | Gras / italique |
+| Ctrl+L | Case à cocher |
+| Ctrl+F | Rechercher dans la note |
 
-## Développement
+## Installer depuis les sources
 
-Prérequis : Node.js, Rust et les outils de build C++ de Visual Studio (sous Windows).
+Prérequis : [Node.js](https://nodejs.org), [Rust](https://rustup.rs) et, sous Windows, les outils de build C++ de Visual Studio.
 
 ```bash
+git clone https://github.com/Kirby54/whale.git
+cd whale
 npm install
 npm run dev      # lance l'app en mode développement
-npm run build    # crée l'installeur Windows (NSIS)
+npm run build    # crée l'installeur Windows
+npm test         # lance les tests
 ```
 
-Structure :
+## Structure du code
 
-- `src/` : l'interface (HTML, CSS, JS, three.js), sans framework. `app.js` est le cœur de l'app, `ai.js` gère l'IA, `import.js` les imports, `views.js` la timeline et le tableau, `graph.js` la baleine 3D.
-- `src-tauri/src/lib.rs` : les fichiers du coffre, les réglages, les imports et les appels à l'IA (Rust)
+| Dossier | Contenu |
+|---|---|
+| `src/` | L'interface, sans framework : `app.js` (cœur), `core.js` (logique pure, testée), `graph.js` (cerveau 3D), `ai.js` et `aipanel.js` (IA), `import.js`, `views.js`, `ui.js` |
+| `editor/` | Source de l'éditeur (CodeMirror 6), compilée par esbuild vers `src/vendor/editor.bundle.js` |
+| `src-tauri/` | La partie Rust : fichiers du coffre, réglages, import et appels à l'IA |
+| `tests/` | Tests de la logique (`npm test`) ; tests Rust avec `cargo test` dans `src-tauri/` |
+| `assets/` | Logos (3 pistes) et icônes générées |
 
-Ouvrir `src/index.html` dans un navigateur fonctionne aussi : les notes sont alors gardées dans le localStorage, ce qui est pratique pour travailler sur l'interface.
+Ouvrir `src/index.html` dans un navigateur fonctionne aussi : les notes sont alors gardées dans le navigateur, ce qui est pratique pour travailler sur l'interface.
+
+## Contribuer
+
+Les issues et les pull requests sont les bienvenues. Lance `npm test` avant de proposer une modification.
 
 ## Licence
 
-MIT
+[MIT](LICENSE)
