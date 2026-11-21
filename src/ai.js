@@ -241,12 +241,12 @@ Tu aides à comprendre ses erreurs, ses setups, ses émotions et ses habitudes d
     return scored;
   }
   function statsText() {
-    const P = allParsed();
-    const tr = Object.keys(P).filter((n) => P[n].type === 'trade' && rOf(P[n]) != null);
-    if (!tr.length) return 'Aucun trade avec un résultat en R.';
-    const rs = tr.map((n) => rOf(P[n])), tot = rs.reduce((a, b) => a + b, 0), w = rs.filter((r) => r > 0).length;
-    const by = (k) => { const g = {}; tr.forEach((n) => { const v = P[n].props[k] || '—'; (g[v] = g[v] || []).push(rOf(P[n])); }); return Object.keys(g).map((v) => `${v} : ${g[v].length} trades, ${Math.round(g[v].filter((r) => r > 0).length / g[v].length * 100)} % gagnants, total ${Math.round(g[v].reduce((a, b) => a + b, 0) * 100) / 100} R`).join(' ; '); };
-    return `${tr.length} trades, ${Math.round(w / tr.length * 100)} % gagnants, total ${Math.round(tot * 100) / 100} R, moyenne ${Math.round(tot / tr.length * 100) / 100} R.\nPar setup : ${by('setup')}\nPar actif : ${by('actif')}`;
+    const st = tradeStats();
+    if (!st.count) return 'Aucun trade avec un résultat en R.';
+    const by = (g) => Object.keys(g).map((v) => `${v} : ${g[v].count} trades, ${g[v].winrate} % gagnants, total ${g[v].total} R`).join(' ; ');
+    return `${st.count} trades, ${st.winrate} % gagnants, total ${st.total} R, moyenne ${st.avg} R, profit factor ${st.profitFactor ?? '—'}.
+Par setup : ${by(st.bySetup)}
+Par actif : ${by(st.byActif)}`;
   }
 
   function bubble(cls, html) {

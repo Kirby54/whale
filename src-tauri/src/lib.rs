@@ -435,3 +435,41 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("erreur au lancement de Whale");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn safe_join_accepte_les_chemins_du_coffre() {
+        let root = Path::new("C:/coffre");
+        assert_eq!(safe_join(root, "Trades/x.md").unwrap(), root.join("Trades/x.md"));
+        assert_eq!(safe_join(root, "Émotions/Stop trop serré.md").unwrap(), root.join("Émotions/Stop trop serré.md"));
+    }
+
+    #[test]
+    fn safe_join_refuse_de_sortir_du_coffre() {
+        let root = Path::new("C:/coffre");
+        for bad in ["", "../secret.txt", "Trades/../../x.md", "/etc/passwd", "C:/Windows/x.md", "\\serveur\partage\x.md", "."] {
+            assert!(safe_join(root, bad).is_err(), "devrait refuser {bad:?}");
+        }
+    }
+
+    #[test]
+    fn ecriture_lecture_renommage_corbeille() {
+        let root = std::env::temp_dir().join(format!("whale-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let mut out = Vec::new();
+        fs::create_dir_all(root.join("Trades")).unwrap();
+        fs::write(root.join("Trades/a.md"), "# A").unwrap();
+        fs::create_dir_all(root.join(".trash")).unwrap();
+        fs::write(root.join(".trash/cache.md"), "ignoré").unwrap();
+        fs::write(root.join("image.png"), [0u8; 4]).unwrap();
+        walk(&root, &root, &mut out);
+        assert_eq!(out.len(), 1, "seuls les .md hors dossiers cachés sont listés");
+        assert_eq!(out[0].path, "Trades/a.md");
+        assert_eq!(out[0].content, "# A");
+        let _ = fs::remove_dir_all(&root);
+    }
+}

@@ -11,15 +11,25 @@ const TYPE_DIR = { trade: 'Trades', setup: 'Setups', actif: 'Actifs', emotion: '
 const TYPE_LABEL = { trade: 'Trade', setup: 'Setup', actif: 'Actif', emotion: 'Émotion / erreur', conversation: 'Conversation IA', note: 'Note' };
 const LABELS = { type: 'Type', actif: 'Actif', setup: 'Setup', sens: 'Sens', entree: 'Entrée', stop: 'Stop loss', sortie: 'Sortie', resultat: 'Résultat', marche: 'Marché', tags: 'Tags', date: 'Date', source: 'Source', pnl: 'P&L', quantite: 'Quantité', resume: 'Résumé' };
 const TYPE_COLOR = { setup: '#58a6ff', actif: '#bc8cff', emotion: '#d29922', conversation: '#39c5cf' };
-const IMG_EXT = /\.(png|jpe?g|gif|webp|bmp)$/i;
+const IMG_EXT = Core.IMG_EXT;
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const stem = (p) => p.split('/').pop().replace(/\.md$/i, '');
-const dirOf = (p) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
-const safeName = (n) => n.replace(/[\\/:*?"<>|]/g, '-').replace(/\s+$/,'').replace(/^\.+/, '') || 'Sans titre';
-const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const { stem, dirOf, safeName, reEsc } = Core;
 function status(msg) { $('status').textContent = msg; }
+
+/* ---------- Collection de notes avec cache ----------
+   « notes » est enveloppé dans un Proxy : ajouter, remplacer ou supprimer une note
+   incrémente namesVersion, ce qui invalide le résolveur de liens et le cache d'analyse. */
+let namesVersion = 0;
+function makeNotes(obj) {
+  namesVersion++;
+  return new Proxy(obj, {
+    set(t, k, v) { if (!(k in t)) namesVersion++; t[k] = v; return true; },
+    deleteProperty(t, k) { delete t[k]; namesVersion++; return true; },
+  });
+}
+notes = makeNotes({});
 
 /* ---------- Chargement / sauvegarde ---------- */
 async function loadAll() {
@@ -28,7 +38,7 @@ async function loadAll() {
   files.sort((a, b) => a.path.localeCompare(b.path, 'fr')).forEach((f) => { next[stem(f.path)] = { path: f.path, content: f.content, mtime: f.mtime || 0 }; });
   // garder le texte en cours de frappe s'il n'est pas encore écrit
   Object.keys(pending).forEach((n) => { if (notes[n]) next[n] = notes[n]; });
-  notes = next;
+  notes = makeNotes(next);
 }
 function queueWrite(name) {
   clearTimeout(pending[name]);
@@ -43,30 +53,27 @@ async function flushOne(name) {
 }
 function flushAll() { return Promise.all(Object.keys(pending).map(flushOne)); }
 
-/* ---------- Analyse des notes ---------- */
+/* ---------- Analyse des notes (avec cache) ---------- */
+let resolverVersion = -1, resolver = null;
 function resolve(t) {
-  t = t.trim(); if (notes[t]) return t;
-  const l = t.toLowerCase(); return Object.keys(notes).find((k) => k.toLowerCase() === l) || null;
+  if (resolverVersion !== namesVersion) { resolver = Core.makeResolver(Object.keys(notes)); resolverVersion = namesVersion; }
+  return resolver(t);
 }
+const parseCache = new Map(); // nom -> { content, version, parsed }
 function parse(name) {
   const raw = notes[name] ? notes[name].content : '';
-  const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-  const props = {}; let body = raw;
-  if (m) {
-    body = raw.slice(m[0].length);
-    m[1].split(/\r?\n/).forEach((l) => { const i = l.indexOf(':'); if (i > 0) props[l.slice(0, i).trim()] = l.slice(i + 1).trim(); });
-  }
-  const links = new Set();
-  body.replace(/`[^`]*`/g, '').replace(/(!?)\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g, (_, bang, t) => {
-    if (bang && IMG_EXT.test(t)) return;
-    const r = resolve(t); links.add(r || t.trim());
-  });
-  ['actif', 'setup'].forEach((k) => { const r = props[k] && resolve(props[k]); if (r) links.add(r); });
+  const c = parseCache.get(name);
+  if (c && c.content === raw && c.version === namesVersion) return c.parsed;
+  const base = c && c.content === raw ? c.base : Core.parseRaw(raw);
+  const links = new Set(base.targets.map((t) => resolve(t) || t));
+  ['actif', 'setup'].forEach((k) => { const r = base.props[k] && resolve(base.props[k]); if (r) links.add(r); });
   links.delete(name);
-  return { props, body, links: [...links], type: props.type || 'note' };
+  const parsed = { props: base.props, body: base.body, links: [...links], type: base.type };
+  parseCache.set(name, { content: raw, version: namesVersion, base, parsed });
+  return parsed;
 }
-function allParsed() { const o = {}; Object.keys(notes).forEach((n) => (o[n] = parse(n))); return o; }
-function rOf(p) { const v = parseFloat(String(p.props.resultat || '').replace(',', '.')); return isNaN(v) ? null : v; }
+function allParsed() { const o = {}; for (const n of Object.keys(notes)) o[n] = parse(n); return o; }
+function rOf(p) { return Core.rOf(p.props); }
 function colorOf(p) {
   if (p.type === 'trade') { const r = rOf(p); return r == null ? '#888888' : r >= 0 ? '#3fb950' : '#f85149'; }
   return TYPE_COLOR[p.type] || '#9a9a9a';
@@ -80,20 +87,12 @@ function noteDate(name, p) {
   return t ? new Date(t * 1000).toISOString().slice(0, 10) : '';
 }
 // Modifie des propriétés du frontmatter (null = supprimer) en gardant l'ordre existant
-function setProps(name, updates) {
-  const raw = notes[name].content;
-  const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-  const lines = m ? m[1].split(/\r?\n/) : [];
-  const body = m ? raw.slice(m[0].length) : raw;
-  const done = new Set();
-  const out = [];
-  lines.forEach((l) => {
-    const i = l.indexOf(':'); const k = i > 0 ? l.slice(0, i).trim() : null;
-    if (k && k in updates) { done.add(k); if (updates[k] != null) out.push(`${k}: ${updates[k]}`); }
-    else out.push(l);
-  });
-  Object.keys(updates).forEach((k) => { if (!done.has(k) && updates[k] != null && updates[k] !== '') out.push(`${k}: ${updates[k]}`); });
-  notes[name].content = `---\n${out.join('\n')}\n---\n` + body.replace(/^\r?\n/, '');
+function setProps(name, updates) { notes[name].content = Core.setPropsText(notes[name].content, updates); }
+// Statistiques des trades qui ont un résultat en R
+function tradeStats(P) {
+  P = P || allParsed();
+  const tr = Object.keys(P).filter((n) => P[n].type === 'trade' && rOf(P[n]) != null).sort();
+  return { names: tr, ...Core.computeStats(tr.map((n) => ({ r: rOf(P[n]), setup: P[n].props.setup, actif: P[n].props.actif }))) };
 }
 
 /* ---------- Markdown ---------- */
@@ -273,10 +272,8 @@ async function renameCur(nn) {
   try { await Store.rename(from, to); } catch (e) { alert('Impossible de renommer : ' + e); $('title').value = cur; return; }
   notes[nn] = { path: to, content: notes[old].content }; delete notes[old];
   // mettre à jour les liens [[ancien nom]] et les propriétés actif/setup
-  const reLink = new RegExp('\\[\\[' + reEsc(old) + '(\\]\\]|\\|)', 'gi');
-  const reProp = new RegExp('^((?:actif|setup): *)' + reEsc(old) + '\\s*$', 'gmi');
   for (const k of Object.keys(notes)) {
-    const c = notes[k].content, nc = c.replace(reLink, '[[' + nn + '$1').replace(reProp, '$1' + nn);
+    const c = notes[k].content, nc = Core.renameInContent(c, old, nn);
     if (nc !== c) { notes[k].content = nc; await Store.write(notes[k].path, nc); }
   }
   cur = nn; renderTree(); renderNote(); status('Renommée en ' + to);
@@ -316,37 +313,29 @@ async function afterVault() {
 
 /* ---------- Tableau de bord ---------- */
 function renderDash() {
-  const P = allParsed();
-  const tr = Object.keys(P).filter((n) => P[n].type === 'trade' && rOf(P[n]) != null).sort();
-  const rs = tr.map((n) => rOf(P[n])); const w = rs.filter((r) => r > 0).length;
-  const tot = rs.reduce((a, b) => a + b, 0);
-  const gains = rs.filter((r) => r > 0).reduce((a, b) => a + b, 0), pertes = -rs.filter((r) => r < 0).reduce((a, b) => a + b, 0);
+  const st = tradeStats();
   const fmt = (x) => (x > 0 ? '+' : '') + Math.round(x * 100) / 100 + ' R';
-  const by = (k) => { const g = {}; tr.forEach((n) => { const v = P[n].props[k] || '—'; (g[v] = g[v] || []).push(rOf(P[n])); }); return g; };
-  const tbl = (k, label) => {
-    const g = by(k);
-    return `<h3 style="margin:22px 0 8px">Par ${label}</h3><table><tr><th>${label}</th><th>Trades</th><th>Réussite</th><th>Total</th></tr>` +
-      Object.keys(g).map((v) => {
-        const a = g[v], ww = a.filter((r) => r > 0).length, t = a.reduce((x, y) => x + y, 0), r = resolve(v);
-        return `<tr class="click" ${r ? `data-n="${esc(r)}"` : ''}><td>${esc(v)}</td><td>${a.length}</td><td>${Math.round((ww / a.length) * 100)} %</td><td style="color:${t >= 0 ? 'var(--win)' : 'var(--loss)'}">${fmt(t)}</td></tr>`;
-      }).join('') + '</table>';
-  };
+  const tbl = (g, label) => `<h3 style="margin:22px 0 8px">Par ${label}</h3><table><tr><th>${label}</th><th>Trades</th><th>Réussite</th><th>Total</th></tr>` +
+    Object.keys(g).map((v) => {
+      const s = g[v], r = resolve(v);
+      return `<tr class="click" ${r ? `data-n="${esc(r)}"` : ''}><td>${esc(v)}</td><td>${s.count}</td><td>${s.winrate} %</td><td style="color:${s.total >= 0 ? 'var(--win)' : 'var(--loss)'}">${fmt(s.total)}</td></tr>`;
+    }).join('') + '</table>';
   $('dash').innerHTML = `<h1 style="margin:0;font-size:26px">Tableau de bord</h1>
   <div style="color:var(--tx3)">Calculé à partir de la propriété <code style="font-family:var(--mono)">resultat</code> (en R) de tes notes de trade.</div>
   <div class="cards">
-    <div class="card"><div class="l">Trades</div><div class="v">${tr.length}</div></div>
-    <div class="card"><div class="l">Taux de réussite</div><div class="v">${tr.length ? Math.round((w / tr.length) * 100) : 0} %</div></div>
-    <div class="card"><div class="l">Total</div><div class="v" style="color:${tot >= 0 ? 'var(--win)' : 'var(--loss)'}">${fmt(tot)}</div></div>
-    <div class="card"><div class="l">R moyen</div><div class="v">${tr.length ? fmt(tot / tr.length) : '—'}</div></div>
-    <div class="card"><div class="l">Profit factor</div><div class="v">${pertes ? Math.round((gains / pertes) * 100) / 100 : '—'}</div></div>
+    <div class="card"><div class="l">Trades</div><div class="v">${st.count}</div></div>
+    <div class="card"><div class="l">Taux de réussite</div><div class="v">${st.winrate} %</div></div>
+    <div class="card"><div class="l">Total</div><div class="v" style="color:${st.total >= 0 ? 'var(--win)' : 'var(--loss)'}">${fmt(st.total)}</div></div>
+    <div class="card"><div class="l">R moyen</div><div class="v">${st.avg != null ? fmt(st.avg) : '—'}</div></div>
+    <div class="card"><div class="l">Profit factor</div><div class="v">${st.profitFactor != null ? st.profitFactor : '—'}</div></div>
   </div>
   <h3 style="margin:0 0 8px">Courbe des gains (en R)</h3><canvas id="eq"></canvas>
-  ${tr.length ? tbl('setup', 'setup') + tbl('actif', 'actif') : '<p class="empty">Ajoute une valeur à « resultat » dans tes trades pour voir les stats.</p>'}`;
+  ${st.count ? tbl(st.bySetup, 'setup') + tbl(st.byActif, 'actif') : '<p class="empty">Ajoute une valeur à « resultat » dans tes trades pour voir les stats.</p>'}`;
+  const pts = st.equity, rs = pts.slice(1).map((v, i) => v - pts[i]);
   const c = $('eq'), dpr = devicePixelRatio || 1, W = c.clientWidth, Hh = c.clientHeight;
   c.width = W * dpr; c.height = Hh * dpr;
   const x = c.getContext('2d'); x.scale(dpr, dpr);
-  const pts = [0]; rs.forEach((r) => pts.push(pts[pts.length - 1] + r));
-  const mn = Math.min(...pts), mx = Math.max(...pts), pad = 20;
+  const mn = pts.reduce((a, b) => Math.min(a, b), 0), mx = pts.reduce((a, b) => Math.max(a, b), 0), pad = 20;
   const sx = (i) => pad + (i * (W - 2 * pad)) / Math.max(1, pts.length - 1);
   const sy = (v) => Hh - pad - ((v - mn) * (Hh - 2 * pad)) / Math.max(1e-9, mx - mn);
   x.strokeStyle = '#222'; x.setLineDash([3, 4]); x.beginPath(); x.moveTo(pad, sy(0)); x.lineTo(W - pad, sy(0)); x.stroke(); x.setLineDash([]);
