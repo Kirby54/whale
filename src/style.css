@@ -103,7 +103,7 @@ tr.click:hover td{background:var(--bg3)}
 @media (max-width:960px){#right{display:none}}
 @media (max-width:640px){#side{display:none}#notecol,#dash{padding:20px 16px}}
 
-/* ---------- v0.2 : IA, import, timeline, tableau ---------- */
+/* ---------- AI, import, timeline, table ---------- */
 :root{--conv:#39c5cf}
 .tbtn.ai{color:var(--acc2);border-color:#3b2f6b}
 .tbtn.ai:hover{background:#1d1a2b;color:#c9b8ff}
@@ -177,7 +177,7 @@ tr.click:hover td{background:var(--bg3)}
 #tradetable td{white-space:nowrap}
 #tradetable td.tags{white-space:normal;color:var(--tx3);font-size:12px}
 
-/* ---------- v0.3 : style « cerveau » ---------- */
+/* ---------- Brain-style layout ---------- */
 #side.hide{display:none}
 #nav{width:172px;flex:none;background:#000;border-right:1px solid #1c1c1c;display:flex;flex-direction:column;padding:18px 12px 14px;position:relative}
 #brand{font-size:17px;letter-spacing:-.2px;padding:0 2px;user-select:none}
@@ -230,7 +230,7 @@ tr.click:hover td{background:var(--bg3)}
 @media (max-width:1100px){#right{display:none}}
 @media (max-width:760px){#nav{width:120px}#openPalette kbd{display:none}}
 
-/* ---------- Barre de titre intégrée (remplace celle de Windows) ---------- */
+/* ---------- Built-in title bar (replaces the Windows one) ---------- */
 #titlebar{display:none}
 body.desktop #titlebar{display:flex;height:32px;flex:none;align-items:stretch;justify-content:space-between;background:#000;border-bottom:1px solid #161616;user-select:none;-webkit-user-select:none}
 body.desktop #app{height:calc(100vh - 32px)}
@@ -242,11 +242,11 @@ body.desktop #app{height:calc(100vh - 32px)}
 .tb-btns #winClose:hover{background:#c42b1c;color:#fff}
 .tb-btns svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:1}
 
-/* Éditeur avec aperçu en direct */
+/* Live-preview editor */
 #editorhost{min-height:60vh}
 #editorhost .cm-editor{background:transparent}
 
-/* Logo et bande blanche sous le nom */
+/* Logo and white bar under the name */
 #brand{display:flex;align-items:center;gap:6px}
 #brandLogo{width:22px;height:22px;object-fit:contain}
 #brandbar{background:#fff !important;height:2px;width:34px}
@@ -257,7 +257,7 @@ body.desktop #app{height:calc(100vh - 32px)}
 .logos button:hover{border-color:#555;color:#fff}
 .logos button.on{border-color:var(--acc);color:#fff;background:#1d1a2b}
 
-/* ---------- Panneau « Ton IA » ---------- */
+/* ---------- "Your AI" panel ---------- */
 #aipanel{width:clamp(290px,28vw,400px);flex:none;background:#000;border-left:1px solid #1f1f1f;display:flex;flex-direction:column;min-height:0;padding:14px}
 #aipanel.hide{display:none}
 .aph{display:flex;justify-content:space-between;align-items:center;border:1px solid #2a2a2a;border-bottom:0;padding:14px 16px;font-weight:600;color:#fff}

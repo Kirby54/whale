@@ -1,4 +1,4 @@
-// Pas de console noire en plus de la fenêtre sous Windows (en release)
+// No extra black console window on Windows (release builds)
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {

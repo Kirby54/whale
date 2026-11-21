@@ -1,31 +1,29 @@
-﻿{
-    "name":  "whale",
-    "version":  "1.0.0",
-    "main":  "index.js",
-    "scripts":  {
-                    "dev":  "tauri dev",
-                    "build":  "tauri build",
-                    "test":  "node --test --test-reporter=spec tests/core.test.js",
-                    "build:editor":  "esbuild editor/whale-editor.js --bundle --minify --format=iife --target=es2020 --outfile=src/vendor/editor.bundle.js"
-                },
-    "keywords":  [
-
-                 ],
-    "author":  "",
-    "license":  "MIT",
-    "description":  "Journal de trading local et open source, inspirÃ© d\u0027Obsidian",
-    "devDependencies":  {
-                            "@codemirror/autocomplete":  "^6.20.4",
-                            "@codemirror/commands":  "^6.11.1",
-                            "@codemirror/lang-markdown":  "^6.5.2",
-                            "@codemirror/language":  "^6.13.1",
-                            "@codemirror/search":  "^6.7.2",
-                            "@codemirror/state":  "^6.7.6",
-                            "@codemirror/view":  "^6.43.15",
-                            "@lezer/highlight":  "^1.2.5",
-                            "@lezer/markdown":  "^1.8.1",
-                            "@tauri-apps/cli":  "^2.12.6",
-                            "esbuild":  "^0.25.12",
-                            "three":  "^0.128.0"
-                        }
+{
+  "name": "whale",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "test": "node --test --test-reporter=spec tests/core.test.js",
+    "build:editor": "esbuild editor/whale-editor.js --bundle --minify --format=iife --target=es2020 --outfile=src/vendor/editor.bundle.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "description": "Local-first, open-source trading journal and second brain",
+  "devDependencies": {
+    "@codemirror/autocomplete": "^6.20.4",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/highlight": "^1.2.5",
+    "@lezer/markdown": "^1.8.1",
+    "@tauri-apps/cli": "^2.12.6",
+    "esbuild": "^0.25.12",
+    "three": "^0.128.0"
+  }
 }

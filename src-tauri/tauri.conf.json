@@ -38,7 +38,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "shortDescription": "Journal de trading local",
-    "longDescription": "Whale est un journal de trading local et open source, inspiré d'Obsidian : notes Markdown, liens entre trades et vue graphique 3D en forme de baleine."
+    "shortDescription": "Local-first trading journal and second brain",
+    "longDescription": "Whale is a local-first, open-source trading journal and second brain: linked Markdown notes, a 3D whale-shaped brain view, an Obsidian-style editor and AI (Claude or Ollama) that answers from your own journal."
   }
 }
