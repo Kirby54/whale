@@ -47,7 +47,7 @@
     pickFile: async () => { alert("L'import de fichiers fonctionne dans l'app desktop."); return null; },
     readExternal: async () => { throw new Error("Disponible seulement dans l'app desktop"); },
     importFolder: async () => { throw new Error("Disponible seulement dans l'app desktop"); },
-    getSettings: async () => ({ provider: 'claude', has_key: false, key_hint: '', claude_model: 'claude-opus-5-5', ollama_url: 'http://localhost:11434', ollama_model: 'llama3.1' }),
+    getSettings: async () => ({ provider: 'claude', has_key: false, key_hint: '', key_store: '', claude_model: 'claude-opus-5-5', ollama_url: 'http://localhost:11434', ollama_model: 'llama3.1' }),
     saveSettings: async () => { throw new Error("Les réglages fonctionnent dans l'app desktop"); },
     forgetKey: async () => { throw new Error("Disponible seulement dans l'app desktop"); },
     ai: async () => { throw new Error("L'IA fonctionne dans l'app desktop (pas dans le navigateur)."); },
