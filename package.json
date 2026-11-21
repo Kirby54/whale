@@ -1,0 +1,19 @@
+﻿{
+    "name":  "whale",
+    "version":  "1.0.0",
+    "main":  "index.js",
+    "scripts":  {
+                    "dev":  "tauri dev",
+                    "build":  "tauri build"
+                },
+    "keywords":  [
+
+                 ],
+    "author":  "",
+    "license":  "MIT",
+    "description":  "Journal de trading local et open source, inspiré d\u0027Obsidian",
+    "devDependencies":  {
+                            "@tauri-apps/cli":  "^2.12.6",
+                            "three":  "^0.128.0"
+                        }
+}
