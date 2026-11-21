@@ -3,31 +3,67 @@
    Folder legend (hover / click to highlight) and time histogram (draggable window). */
 window.Graph = (() => {
   const PALETTE = ['#8b7cf6', '#2dd4bf', '#4f8cf7', '#facc15', '#fb923c', '#4ade80', '#f472b6', '#f87171', '#22d3ee', '#a3e635', '#e879f9', '#94a3b8'];
-  let N_CLOUD = 7000; // grows with the vault (at least 1.6 points per note)
-  let R, S, C, G, pts, linkLines, ray, inited = false, running = false;
-  let zoom = 1, ry = 0.25, rx = 0.1, drag = false, moved = 0, lx = 0, ly = 0, auto = true, tt = 0;
+  let N_CLOUD = 7000; // grows with the vault
+  let BODY_N = 0;     // the first BODY_N points are the body (skin + pleats); fins and flukes come after
+  let R, S, C, G, pts, linkLines, webLines, ray, inited = false, running = false;
+  let zoom = 1, ry = 0.35, rx = 0.42, drag = false, moved = 0, lx = 0, ly = 0, auto = true, tt = 0;
   let cloud = [], folders = [], folderOfPt = [], noteAt = {}, nameOfPt = {}, dateOfPt = {};
   let selFolder = null, hoverFolder = null, hoverPt = null, range = null, bins = [], lit = null; // lit: notes lit up by the AI
   const wrap = $('graphview'), cv = $('gcanvas'), tip = $('gtip'), mouse = new THREE.Vector2(-9, -9);
 
-  /* ---------- Whale silhouette ---------- */
+  /* ---------- Whale silhouette (humpback anatomy) ----------
+     Points sit mostly on the skin so the 3D volume reads clearly:
+     flat broad head, deep belly with throat pleats, long knobbly pectoral fins,
+     small dorsal fin, thin tail stock and wide swept-back flukes with a central notch. */
+  const X0 = -1.75, X1 = 1.55;                     // snout -> tail stock
+  const tOf = (x) => (x - X0) / (X1 - X0);
+  const radius = (t) => 0.035 + (t < 0.32 ? 0.5 * Math.pow(Math.sin((t / 0.32) * Math.PI / 2), 0.8) : 0.5 * Math.pow(1 - Math.pow((t - 0.32) / 0.68, 1.7), 1.2));
+  const spineY = (t) => 0.07 * Math.sin(Math.PI * t) - 0.06 * t - 0.03 * Math.max(0, 0.12 - t) / 0.12;
   function whaleCloud() {
     let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
     const P = [];
-    const body = Math.floor(N_CLOUD * 0.8);
-    for (let i = 0; i < body; i++) {
-      const t = Math.pow(rnd(), 0.85), a = rnd() * Math.PI * 2;
-      const r = (0.62 * Math.pow(Math.sin(Math.PI * Math.min(t * 1.05, 1)), 0.6) * (1 - 0.75 * t) + 0.07) * Math.pow(rnd(), 0.35);
-      let y = r * Math.cos(a) * 0.8; if (y < 0) y *= 0.75;
-      P.push(new THREE.Vector3(-1.7 + 3.3 * t, y + 0.15 * Math.sin(t * 3), r * Math.sin(a)));
+    const n = (f) => Math.floor(N_CLOUD * f);
+    const skin = (t, a, depth) => {
+      const r = radius(t) * depth, c = Math.cos(a);
+      return new THREE.Vector3(X0 + t * (X1 - X0), spineY(t) + r * c * (c > 0 ? 0.74 : 0.95), r * Math.sin(a));
+    };
+    // Body: 88% on the skin, 12% inside
+    for (let i = 0, N = n(0.62); i < N; i++) {
+      const t = Math.pow(rnd(), 0.9), a = rnd() * Math.PI * 2;
+      P.push(skin(t, a, rnd() < 0.88 ? 0.97 + rnd() * 0.05 : Math.pow(rnd(), 0.5)));
     }
-    const rest = N_CLOUD - body;
-    // Tail fluke (horizontal), attached to the end of the body
-    for (let i = 0; i < rest * 0.5; i++) { const s = Math.pow(rnd(), 0.8), side = rnd() < 0.5 ? -1 : 1, u = rnd(); P.push(new THREE.Vector3(1.55 + 0.5 * s + 0.12 * u * s, 0.05 + 0.1 * s + (rnd() - 0.5) * 0.04, side * (0.03 + 0.7 * s * (1 - 0.45 * u)))); }
-    // Pectoral fins
-    for (let i = 0; i < rest * 0.32; i++) { const s = rnd(), side = rnd() < 0.5 ? -1 : 1, w = (1 - s) * 0.18; P.push(new THREE.Vector3(-0.75 + 0.45 * s + (rnd() - 0.5) * w, -0.22 - 0.28 * s + (rnd() - 0.5) * 0.05, side * (0.28 + 0.5 * s + (rnd() - 0.5) * w))); }
-    // Dorsal fin, on the back
-    while (P.length < N_CLOUD) { const s = rnd(), h = 0.2 * Math.pow(1 - s, 0.8) * Math.min(1, s / 0.25); P.push(new THREE.Vector3(0.38 + 0.36 * s, 0.3 + rnd() * h, (rnd() - 0.5) * 0.04)); }
+    // Throat pleats: lines along the lower front of the body
+    for (let i = 0, N = n(0.08); i < N; i++) {
+      const t = 0.03 + rnd() * 0.45, k = Math.round((rnd() - 0.5) * 22);
+      const a = Math.PI + k * 0.085 + (rnd() - 0.5) * 0.012;
+      P.push(skin(t, a, 1.0));
+    }
+    BODY_N = P.length;
+    // Pectoral fins: long (a third of the body), swept back and down, knobbly leading edge
+    for (let i = 0, N = n(0.12); i < N; i++) {
+      const side = rnd() < 0.5 ? -1 : 1, u = rnd(), v = rnd() * 2 - 1;
+      const t0 = 0.3, r0 = radius(t0), base = new THREE.Vector3(X0 + t0 * (X1 - X0), spineY(t0) - r0 * 0.55, side * r0 * 0.78);
+      const dir = new THREE.Vector3(0.62, -0.5, side * 0.6).normalize();
+      const width = (0.17 * Math.pow(1 - u, 0.55) + 0.015) * (1 + (v < 0 ? 0.08 * Math.sin(u * 34) : 0));
+      const p = base.addScaledVector(dir, u * 1.15);
+      p.x += v * width; p.y += v * width * 0.25 + (rnd() - 0.5) * 0.012;
+      P.push(p);
+    }
+    // Dorsal fin: small hump two thirds along the back
+    for (let i = 0, N = n(0.025); i < N; i++) {
+      const s = rnd(), t = 0.64 + 0.08 * s, top = spineY(t) + radius(t) * 0.74;
+      const h = 0.11 * Math.min(1, s / 0.35) * Math.pow(1 - s, 0.7);
+      P.push(new THREE.Vector3(X0 + t * (X1 - X0), top + rnd() * h, (rnd() - 0.5) * 0.025));
+    }
+    // Flukes: wide, horizontal, swept back, notch in the middle of the trailing edge
+    while (P.length < N_CLOUD) {
+      const s = rnd() * 2 - 1, as = Math.abs(s);
+      const le = X1 - 0.04 + 0.36 * Math.pow(as, 1.3);
+      let te = le + 0.34 * (1 - Math.pow(as, 1.8)) + 0.035;
+      if (as < 0.09) te -= 0.13 * (1 - as / 0.09);
+      const x = le + (te - le) * rnd();
+      P.push(new THREE.Vector3(x, spineY(1) + 0.05 * as + (rnd() - 0.5) * 0.02 * (1 - as), s * 0.78));
+    }
     return { P, rnd };
   }
 
@@ -48,11 +84,14 @@ window.Graph = (() => {
     S = new THREE.Scene(); C = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
     ray = new THREE.Raycaster();
     G = new THREE.Group(); S.add(G);
+    // Gentle swimming: the rear of the body and the flukes undulate (same motion for points and threads)
+    const SWIM = `uniform float uTime;
+      vec3 swim(vec3 p){ float k = clamp((p.x - 0.1) / 2.2, 0.0, 1.0); p.y += 0.09 * k * k * sin(uTime * 1.2 - p.x * 1.8); return p; }`;
     const mat = new THREE.ShaderMaterial({
-      uniforms: { uPR: { value: R.getPixelRatio() }, uDist: { value: 5 } },
+      uniforms: { uPR: { value: R.getPixelRatio() }, uDist: { value: 5 }, uTime: { value: 0 } },
       vertexShader: `attribute vec3 acolor; attribute float asize; attribute float aalpha;
-        uniform float uPR; uniform float uDist; varying vec3 vC; varying float vA;
-        void main(){ vC=acolor; vA=aalpha; vec4 mv=modelViewMatrix*vec4(position,1.0);
+        uniform float uPR; uniform float uDist; varying vec3 vC; varying float vA; ${SWIM}
+        void main(){ vC=acolor; vA=aalpha; vec4 mv=modelViewMatrix*vec4(swim(position),1.0);
           gl_PointSize=asize*uPR*(uDist/-mv.z); gl_Position=projectionMatrix*mv; }`,
       fragmentShader: `varying vec3 vC; varying float vA;
         void main(){ float d=length(gl_PointCoord-0.5); if(d>0.5) discard;
@@ -60,7 +99,19 @@ window.Graph = (() => {
       transparent: true, depthWrite: false,
     });
     pts = new THREE.Points(makeGeometry(), mat); G.add(pts);
-    linkLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xa68bff, transparent: true, opacity: 0.55 }));
+    const lineMat = (opacity, color) => new THREE.ShaderMaterial({
+      uniforms: { uTime: mat.uniforms.uTime, uOpacity: { value: opacity }, uColor: { value: new THREE.Color(color || '#ffffff') }, uUseColor: { value: color ? 1 : 0 } },
+      vertexShader: `attribute vec3 color; varying vec3 vC; ${SWIM}
+        void main(){ vC=color; gl_Position=projectionMatrix*modelViewMatrix*vec4(swim(position),1.0); }`,
+      fragmentShader: `uniform float uOpacity; uniform vec3 uColor; uniform float uUseColor; varying vec3 vC;
+        void main(){ gl_FragColor=vec4(uUseColor > 0.5 ? uColor : vC, uOpacity); }`,
+      transparent: true, depthWrite: false,
+    });
+    // Every link between notes, always visible as thin threads (colored by the notes' folders)
+    webLines = new THREE.LineSegments(new THREE.BufferGeometry(), lineMat(0.3));
+    G.add(webLines);
+    // Links of the hovered note, brighter
+    linkLines = new THREE.LineSegments(new THREE.BufferGeometry(), lineMat(0.85, '#c4b5ff'));
     G.add(linkLines);
 
     new ResizeObserver(resize).observe(wrap);
@@ -94,7 +145,7 @@ window.Graph = (() => {
   const folderName = (path) => (path.includes('/') ? path.split('/')[0] : 'Notes');
   function build() {
     const names = Object.keys(notes);
-    const needed = Math.max(7000, Math.ceil(names.length * 1.6));
+    const needed = Math.max(7000, Math.ceil((names.length * 1.6) / 0.7));
     if (needed !== N_CLOUD) { N_CLOUD = needed; pts.geometry.dispose(); pts.geometry = makeGeometry(); }
     const counts = {};
     names.forEach((n) => { const f = folderName(notes[n].path); counts[f] = (counts[f] || 0) + 1; });
@@ -102,18 +153,22 @@ window.Graph = (() => {
       .map((name, i) => ({ name, count: counts[name], color: new THREE.Color(PALETTE[i % PALETTE.length]), hex: PALETTE[i % PALETTE.length] }));
     if (selFolder != null && !counts[selFolder]) selFolder = null;
 
-    // Each folder takes a slice of the whale (from head to tail)
-    const order = cloud.map((p, i) => [p.x, i]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
+    // Each folder takes a slice of the body (from head to tail); fins and flukes take the color of the nearest slice
+    const order = cloud.slice(0, BODY_N).map((p, i) => [p.x, i]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
     const total = names.length || 1;
     const shares = folders.map((f) => Math.max(f.count / total, 0.06));
     const sum = shares.reduce((a, b) => a + b, 0) || 1;
-    folderOfPt = new Array(N_CLOUD);
-    const slices = []; let start = 0;
+    folderOfPt = new Array(N_CLOUD).fill(-1);
+    const slices = [], maxX = []; let start = 0;
     folders.forEach((f, fi) => {
-      const len = fi === folders.length - 1 ? N_CLOUD - start : Math.round((shares[fi] / sum) * N_CLOUD);
+      const len = fi === folders.length - 1 ? BODY_N - start : Math.round((shares[fi] / sum) * BODY_N);
       const sl = order.slice(start, start + len); sl.forEach((i) => (folderOfPt[i] = fi)); slices.push(sl); start += len;
+      maxX.push(sl.length ? cloud[sl[sl.length - 1]].x : -Infinity);
     });
-    if (!folders.length) order.forEach((i) => (folderOfPt[i] = -1));
+    for (let i = BODY_N; i < N_CLOUD && folders.length; i++) {
+      let fi = maxX.findIndex((x) => cloud[i].x <= x);
+      folderOfPt[i] = fi < 0 ? folders.length - 1 : fi;
+    }
 
     // Place each note on a point in its folder's slice
     noteAt = {}; nameOfPt = {}; dateOfPt = {};
@@ -127,7 +182,32 @@ window.Graph = (() => {
         noteAt[n] = idx; nameOfPt[idx] = n; dateOfPt[idx] = noteDate(n);
       });
     });
-    buildBins(); renderLegend(); style(); drawHist();
+    buildWeb(); buildBins(); renderLegend(); style(); drawHist();
+  }
+
+  // Thin threads for every [[link]] between two notes (each pair drawn once)
+  function buildWeb() {
+    const pos = [], col = [], seen = new Set();
+    Object.keys(noteAt).forEach((n) => {
+      const i = noteAt[n], a = cloud[i];
+      const c = folders[folderOfPt[i]] ? folders[folderOfPt[i]].color : new THREE.Color('#888888');
+      parse(n).links.forEach((m) => {
+        const j = noteAt[m];
+        if (j == null || j === i) return;
+        const key = i < j ? i + '-' + j : j + '-' + i;
+        if (seen.has(key)) return;
+        seen.add(key);
+        const b = cloud[j];
+        const c2 = folders[folderOfPt[j]] ? folders[folderOfPt[j]].color : c;
+        pos.push(a.x, a.y, a.z, b.x, b.y, b.z);
+        col.push(c.r, c.g, c.b, c2.r, c2.g, c2.b);
+      });
+    });
+    webLines.geometry.dispose();
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    webLines.geometry = g;
   }
 
   /* ---------- Point appearance ---------- */
@@ -155,6 +235,8 @@ window.Graph = (() => {
       col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; size[i] = s; al[i] = a;
     }
     pts.geometry.attributes.acolor.needsUpdate = pts.geometry.attributes.asize.needsUpdate = pts.geometry.attributes.aalpha.needsUpdate = true;
+    // Threads fade when something is highlighted, so the highlight stands out
+    if (webLines) webLines.material.uniforms.uOpacity.value = active >= 0 || lit || range || hoverPt != null ? 0.1 : 0.3;
   }
   function setLinks(idx) {
     const arr = [];
@@ -165,7 +247,7 @@ window.Graph = (() => {
       linked.forEach((m) => { const j = noteAt[m]; if (j != null) { const b = cloud[j]; arr.push(a.x, a.y, a.z, b.x, b.y, b.z); } });
     }
     linkLines.geometry.dispose();
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); linkLines.geometry = g;
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(new Array(arr.length).fill(1), 3)); linkLines.geometry = g;
   }
 
   /* ---------- Folder legend ---------- */
@@ -249,6 +331,7 @@ window.Graph = (() => {
     const d = zoom * Math.max(7.2 / (C.aspect || 1), 4.2);
     C.position.set(0, d * 0.08, d); C.lookAt(0, 0.05, 0);
     pts.material.uniforms.uDist.value = d;
+    pts.material.uniforms.uTime.value = tt;
     G.rotation.set(rx, ry, 0.03 * Math.sin(tt * 0.6)); G.position.set(-0.2, 0.3 + 0.03 * Math.sin(tt * 0.8), 0); G.updateMatrixWorld();
 
     // Hover: the note closest to the cursor
