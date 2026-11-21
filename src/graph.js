@@ -7,7 +7,7 @@ window.Graph = (() => {
   let R, S, C, G, pts, linkLines, ray, inited = false, running = false;
   let zoom = 1, ry = 0.25, rx = 0.1, drag = false, moved = 0, lx = 0, ly = 0, auto = true, tt = 0;
   let cloud = [], folders = [], folderOfPt = [], noteAt = {}, nameOfPt = {}, dateOfPt = {};
-  let selFolder = null, hoverFolder = null, hoverPt = null, range = null, bins = [];
+  let selFolder = null, hoverFolder = null, hoverPt = null, range = null, bins = [], lit = null; // lit : notes allumées par l'IA
   const wrap = $('graphview'), cv = $('gcanvas'), tip = $('gtip'), mouse = new THREE.Vector2(-9, -9);
 
   /* ---------- Silhouette de baleine ---------- */
@@ -149,6 +149,7 @@ window.Graph = (() => {
       else if (active < 0) { s = 3.6; a = 0.85; }
       else if (fi === active) { s = 5; a = 1; }
       else { s = 1.9; a = 0.22; }
+      if (isNote && lit) { if (lit.has(nameOfPt[i])) { s = 6; a = 1; } else { s = Math.min(s, 2); a = Math.min(a, 0.22); } }
       if (isNote && !inRange(i)) { a *= 0.12; s = Math.min(s, 2); }
       if (i === hoverPt) { s = 9; a = 1; }
       col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; size[i] = s; al[i] = a;
@@ -177,7 +178,7 @@ window.Graph = (() => {
       const i = +r.dataset.i;
       r.onmouseenter = () => { hoverFolder = i; style(); };
       r.onmouseleave = () => { hoverFolder = null; style(); };
-      r.onclick = () => { selFolder = selFolder === folders[i].name ? null : folders[i].name; renderLegend(); style(); };
+      r.onclick = () => { selFolder = selFolder === folders[i].name ? null : folders[i].name; lit = null; renderLegend(); style(); };
     });
   }
 
@@ -238,7 +239,7 @@ window.Graph = (() => {
       range = [bins[a].from, bins[b].to]; drawHist(); style();
     });
     hc.addEventListener('pointerup', () => { hDrag = null; });
-    hc.addEventListener('dblclick', () => { range = null; drawHist(); style(); });
+    hc.addEventListener('dblclick', () => { range = null; lit = null; drawHist(); style(); });
   }
 
   /* ---------- Boucle d'animation ---------- */
@@ -264,7 +265,25 @@ window.Graph = (() => {
     requestAnimationFrame(frame);
   }
 
+  // Appelé par l'IA : met en avant un dossier, une période et/ou des notes. Renvoie le nombre de notes allumées.
+  function focus({ folder, from, to, names } = {}) {
+    selFolder = folder && folders.some((f) => f.name === folder) ? folder : null;
+    range = from && to && /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) ? [from <= to ? from : to, from <= to ? to : from] : null;
+    lit = names && names.length ? new Set(names.filter((n) => noteAt[n] != null)) : null;
+    if (lit && !lit.size) lit = null;
+    renderLegend(); style(); drawHist();
+    return Object.keys(nameOfPt).filter((k) => {
+      const i = +k, n = nameOfPt[i];
+      if (lit && !lit.has(n)) return false;
+      if (selFolder && folders[folderOfPt[i]].name !== selFolder) return false;
+      return inRange(i);
+    }).length;
+  }
+  function clearFocus() { selFolder = null; range = null; lit = null; renderLegend(); style(); drawHist(); }
+
   return {
+    focus, clearFocus,
+    folders: () => folders.map((f) => f.name),
     show() { if (!inited) init(); resize(); build(); if (!running) { running = true; frame(); } },
     hide() { running = false; tip.style.display = 'none'; },
   };

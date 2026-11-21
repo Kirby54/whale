@@ -249,6 +249,26 @@ Par setup : ${by(st.bySetup)}
 Par actif : ${by(st.byActif)}`;
   }
 
+  // Contexte envoyé à l'IA : stats, liste des notes et des dossiers, notes pertinentes
+  function buildContext(q) {
+    const used = retrieve(q);
+    const folders = [...new Set(Object.keys(notes).map((n) => (notes[n].path.includes('/') ? notes[n].path.split('/')[0] : 'Notes')))];
+    const ctx = `## Statistiques du journal
+${statsText()}
+
+## Dossiers
+${folders.join(' | ')}
+
+## Toutes les notes (noms)
+${Object.keys(notes).slice(0, 400).join(' | ')}
+
+## Notes pertinentes
+` +
+      used.map((n) => `### [[${n}]] (${TYPE_LABEL[parse(n).type] || 'Note'}${noteDate(n) ? ', ' + noteDate(n) : ''}, dossier ${notes[n].path.split('/')[0]})
+${notes[n].content.slice(0, 3500)}`).join('\n\n');
+    return { ctx, used, folders };
+  }
+
   function bubble(cls, html) {
     const d = document.createElement('div'); d.className = 'bubble ' + cls; d.innerHTML = html;
     $('chat').appendChild(d); $('chat').scrollTop = $('chat').scrollHeight; return d;
@@ -279,9 +299,7 @@ Par actif : ${by(st.byActif)}`;
     busy = true; $('asksend').disabled = true;
     bubble('me', esc(q).replace(/\n/g, '<br>'));
     const wait = bubble('bot', '<span class="thinking">Lecture de tes notes…</span>');
-    const used = retrieve(q);
-    const ctx = `## Statistiques du journal\n${statsText()}\n\n## Toutes les notes (noms)\n${Object.keys(notes).slice(0, 400).join(' | ')}\n\n## Notes pertinentes\n` +
-      used.map((n) => `### [[${n}]] (${TYPE_LABEL[parse(n).type] || 'Note'}${noteDate(n) ? ', ' + noteDate(n) : ''})\n${notes[n].content.slice(0, 3500)}`).join('\n\n');
+    const { ctx, used } = buildContext(q);
     try {
       const answer = await call({ system: ASK_SYSTEM, user: `${ctx}\n\n---\nQuestion : ${q}`, history: history.slice(-6), effort: 'medium' });
       history.push({ role: 'user', content: q }, { role: 'assistant', content: answer });
@@ -298,5 +316,5 @@ Par actif : ${by(st.byActif)}`;
   $('askinput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('askform').requestSubmit(); } });
   $('askinput').addEventListener('input', () => { const t = $('askinput'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 160) + 'px'; });
 
-  return { call, openSettings, classifyCurrent, classifyAll, classifyNote, showAsk, loadSettings };
+  return { call, openSettings, classifyCurrent, classifyAll, classifyNote, showAsk, loadSettings, buildContext, ASK_SYSTEM, providerLabel: () => providerLabel(), getSettings: () => settings };
 })();
