@@ -1,39 +1,84 @@
 <p align="center">
-  <img src="assets/concepts/a-ocean-gem-app.svg" width="120" alt="Whale logo">
+  <img src="assets/concepts/a-ocean-gem-app.svg" width="96" alt="Whale logo">
 </p>
 
 <h1 align="center">Whale</h1>
 
 <p align="center">
-  A <b>local-first</b>, <b>open-source</b> trading journal that is also a second brain.<br>
-  Your Markdown notes, trades and AI conversations, linked together and shown as a whale.
+  <b>Your trading journal, as a second brain.</b><br>
+  Local-first Markdown notes, a 3D whale-shaped brain, and an AI that answers from your own trades.
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-8b6cef"></a>
+  <img alt="Platform: Windows" src="https://img.shields.io/badge/platform-Windows-2563eb">
+  <img alt="Built with Tauri" src="https://img.shields.io/badge/built%20with-Tauri%202-24c8db">
+  <img alt="Local-first" src="https://img.shields.io/badge/data-local--first-3fb950">
+  <img alt="AI: Claude or Ollama" src="https://img.shields.io/badge/AI-Claude%20%7C%20Ollama-d29922">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/brain-full.png" alt="The Whale brain: every note is a point in a 3D whale, colored by folder" width="100%">
 </p>
 
 ---
 
 ## Why Whale
 
-- **Your data stays with you.** Every note is a real `.md` file in a folder on your computer (the "vault"). No account, no forced cloud, and you can open your notes in any editor.
-- **Built for trading.** Trade properties (asset, setup, side, entry, stop, exit, result in R), dashboard, equity curve, broker trade import.
-- **A second brain.** `[[Links]]`, backlinks, tags, import of your notes and of your ChatGPT or Claude conversations, and an AI that answers from your journal.
+- 🗂️ **Your data stays with you.** Every note is a plain `.md` file in a folder on your computer. No account, no forced cloud, and any editor can open your notes.
+- 📈 **Built for trading.** Trade properties (asset, setup, side, entry, stop, exit, result in R), dashboard, equity curve and broker trade import.
+- 🧠 **A real second brain.** `[[Links]]`, backlinks, tags, your notes and your ChatGPT or Claude conversations in one place, and an AI that answers from all of it.
 
 ## Features
 
+### 🐋 The brain, driven by your AI
+
+Every note is a point in a 3D whale, colored by folder. Ask **Your AI** a question: it answers with your notes as sources **and lights up** the matching folder, period and notes in the brain. Hover the folder legend to highlight a folder, and drag the time histogram to focus on a period.
+
+<p align="center"><img src="docs/screenshots/brain.png" alt="Your AI answers a question and highlights the matching trades in the brain" width="100%"></p>
+
+### ✍️ An Obsidian-style editor
+
+Live preview built on CodeMirror 6: the Markdown syntax disappears outside the line you are typing on. Autocomplete for `[[links]]` and `#tags`, real checkboxes, chart screenshots pasted with <kbd>Ctrl</kbd>+<kbd>V</kbd>, backlinks and outgoing links on the side.
+
+<p align="center"><img src="docs/screenshots/editor.png" alt="A trade note in the live-preview editor with links, checkboxes and tags" width="100%"></p>
+
+### 📊 Dashboard and trades table
+
+Win rate, total and average R, profit factor, equity curve, and results by setup and by asset, all computed from your notes. The trades table is sortable and filterable.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/dashboard.png" alt="Dashboard with win rate, total R, profit factor and equity curve"></td>
+    <td width="50%"><img src="docs/screenshots/table.png" alt="Sortable trades table"></td>
+  </tr>
+</table>
+
+### ⌨️ Ask or search, from anywhere
+
+<kbd>Ctrl</kbd>+<kbd>K</kbd> finds any note, runs any action, or sends your question straight to the AI.
+
+<p align="center"><img src="docs/screenshots/palette.png" alt="The Ctrl+K palette searching for BTC" width="100%"></p>
+
+### And also
+
 | | |
 |---|---|
-| **Brain** | Every note is a point in a 3D whale, colored by folder. Clickable legend and a time histogram with a draggable window. |
-| **Your AI** | Panel next to the brain. Ask a question: the AI answers with your notes as sources and lights up the matching folder, period and notes in the brain. |
-| **Editor** | Live preview like Obsidian (CodeMirror 6). Autocomplete for `[[links]]` and `#tags`, checkboxes, chart screenshots pasted with Ctrl+V. |
-| **AI classification** | One click fills in a note's type, tags, date, summary and trade properties, and adds links to your other notes. |
-| **Import** | Obsidian or Notion folders (Markdown), ChatGPT and Claude conversations (`conversations.json`), trades as CSV (MT4/MT5, TradingView, Binance, IBKR…) with R computed for you. |
-| **Views** | Dashboard (win rate, average R, profit factor), timeline, sortable trades table, Ctrl+K search. |
+| **AI classification** | One click fills in a note's type, tags, date, summary and trade properties, and links it to your other notes. Works on a single note or the whole vault. |
+| **Import** | Obsidian or Notion folders (Markdown), ChatGPT and Claude conversations (`conversations.json`), and broker trades as CSV (MT4/MT5, TradingView, Binance, IBKR…) with R computed for you. |
+| **Timeline** | All your notes month by month, filterable by type. |
+| **Native feel** | Black built-in title bar, 3 logos to choose from, and a ~8 MB app. |
 
 ## AI, your choice
 
-- **Claude**, with your own Anthropic API key (default model: `claude-opus-5-5`). The key is stored in the system vault (Windows Credential Manager), never in your notes.
-- **Ollama**, 100% local and free: nothing leaves your computer.
+| | Claude | Ollama |
+|---|---|---|
+| Where it runs | Anthropic API, with your own key | 100% on your computer |
+| Cost | Pay-as-you-go, billed by Anthropic | Free |
+| Default model | `claude-opus-5-5` | `llama3.1` (any Ollama model) |
+| Your key | Stored in Windows Credential Manager, never in your notes | No key needed |
 
-To answer, Whale sends the chosen provider your statistics and the notes relevant to the question. With Ollama, everything stays on your machine.
+To answer, Whale sends the chosen provider your statistics and the notes relevant to the question. With Ollama, nothing leaves your machine. The AI answers in the language you ask in.
 
 ## Trade note format
 
@@ -59,13 +104,13 @@ Clean break on [[TSLA]], [[Breakout]] setup.
 
 | Shortcut | Action |
 |---|---|
-| Ctrl+K | Search a note or ask the AI |
-| Ctrl+N | New trade |
-| Ctrl+E | Switch between the editor and the reading view |
-| Ctrl+G | Brain |
-| Ctrl+B / Ctrl+I | Bold / italic |
-| Ctrl+L | Checkbox |
-| Ctrl+F | Find in the note |
+| <kbd>Ctrl</kbd>+<kbd>K</kbd> | Search a note or ask the AI |
+| <kbd>Ctrl</kbd>+<kbd>N</kbd> | New trade |
+| <kbd>Ctrl</kbd>+<kbd>E</kbd> | Switch between the editor and the reading view |
+| <kbd>Ctrl</kbd>+<kbd>G</kbd> | Brain |
+| <kbd>Ctrl</kbd>+<kbd>B</kbd> / <kbd>Ctrl</kbd>+<kbd>I</kbd> | Bold / italic |
+| <kbd>Ctrl</kbd>+<kbd>L</kbd> | Checkbox |
+| <kbd>Ctrl</kbd>+<kbd>F</kbd> | Find in the note |
 
 ## Build from source
 
@@ -89,8 +134,17 @@ npm test         # run the tests
 | `src-tauri/` | The Rust side: vault files, settings, import and AI calls |
 | `tests/` | Logic tests (`npm test`); Rust tests with `cargo test` in `src-tauri/` |
 | `assets/` | Logo options and generated icons |
+| `docs/screenshots/` | README screenshots, regenerated with `tools/screenshots.ps1` |
 
 Opening `src/index.html` in a browser also works: notes are then kept in the browser, which is handy for working on the interface.
+
+## Roadmap
+
+- [ ] Windows installer in GitHub Releases
+- [ ] Safe writes (no corrupted note if the app crashes) and conflict detection when a note is edited elsewhere
+- [ ] Notes placed by meaning in the brain (embeddings)
+- [ ] Editable properties form, code highlighting and tables in the editor
+- [ ] macOS and Linux builds
 
 ## Contributing
 
@@ -99,3 +153,5 @@ Issues and pull requests are welcome. Run `npm test` before submitting a change.
 ## License
 
 [MIT](LICENSE)
+
+<sub>Screenshots use the example notes that ship with the app; the AI answer shown is an example.</sub>

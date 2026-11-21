@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- Screenshot scenes for the README.
+     Loads the app (browser mode, example notes) in a frame and sets up one scene.
+     Usage: tools/screenshots.ps1 (headless Edge), or open tools/shots.html?shot=brain -->
+<meta charset="utf-8">
+<style>html,body{margin:0;background:#000;overflow:hidden}iframe{border:0;width:100vw;height:100vh;display:block}</style>
+<iframe id="f"></iframe>
+<script>
+const shot = new URLSearchParams(location.search).get('shot') || 'brain';
+const f = document.getElementById('f');
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// Example AI answer shown in the screenshots (the app runs without an API key here)
+const DEMO_ANSWER = {
+  answer: 'You took 3 BTC trades in November: 2 winners ([[2026-11-12 BTC long]] +3 R, [[2026-11-20 BTC long]] +2 R) and 1 loser ([[2026-11-05 BTC short]] −1 R), entered too late out of [[FOMO]]. Net: +4 R.',
+  folder: 'Trades', from: '2026-11-01', to: '2026-11-30',
+  notes: ['2026-11-12 BTC long', '2026-11-20 BTC long', '2026-11-05 BTC short'],
+  view_label: 'your BTC trades, November 2026',
+};
+try { localStorage.clear(); if (shot === 'brain-full' || shot === 'palette') localStorage.setItem('whale-aipanel', '0'); } catch (e) {}
+f.onload = async () => {
+  const w = f.contentWindow, d = w.document;
+  await wait(800);
+  d.body.classList.add('desktop');
+  w.Store.ai = async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(DEMO_ANSWER) }] });
+  if (shot === 'brain') {
+    w.setView('graph'); await wait(400);
+    w.AIPanel.send('Everything about BTC this month'); await wait(900);
+  } else if (shot === 'brain-full') {
+    w.setView('graph'); await wait(400);
+    d.querySelector('#glegend .lr').dispatchEvent(new w.MouseEvent('mouseenter'));
+  } else if (shot === 'editor') {
+    const n = '2026-11-05 BTC short';
+    // "notes" is a top-level let in app.js, not a window property: reach it through eval in the frame
+    w.eval(`notes[${JSON.stringify(n)}].content += ${JSON.stringify('\n## Review\n- [x] Logged the trade\n- [ ] Wait for the H4 trend next time\n\n#fomo #review\n')}`);
+    await w.open(n); await wait(500);
+    w.getEditor().view.contentDOM.blur(); await wait(200);
+  } else if (shot === 'dashboard') {
+    w.setView('dash'); await wait(500);
+  } else if (shot === 'table') {
+    w.setView('table'); await wait(300);
+  } else if (shot === 'palette') {
+    w.setView('graph'); await wait(300);
+    d.getElementById('openPalette').click(); await wait(100);
+    const i = d.getElementById('pinput'); i.value = 'btc'; i.dispatchEvent(new w.Event('input'));
+  }
+  document.title = 'ready';
+};
+f.src = '../src/index.html';
+</script>
