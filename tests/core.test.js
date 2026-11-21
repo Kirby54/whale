@@ -198,3 +198,25 @@ test('parseConversations: loop in a corrupted export', () => {
   const convs = Core.parseConversations([{ title: 'Loop', current_node: 'a', mapping: { a: { parent: 'b', message: { author: { role: 'user' }, content: { parts: ['A'] } } }, b: { parent: 'a', message: { author: { role: 'assistant' }, content: { parts: ['B'] } } } } }]);
   assert.equal(convs[0].msgs.length, 2);
 });
+
+test('tokenize: lowercase, accents and common words removed', () => {
+  assert.deepEqual(Core.tokenize('The BTC Breakout était très propre, 2026'), ['btc', 'breakout', 'etait', 'propre']);
+});
+
+test('similarityEdges: notes about the same thing are linked', () => {
+  const docs = ['bitcoin breakout weekly volume crypto', 'bitcoin pullback support crypto weekend', 'tesla earnings breakout stock', 'tesla pullback rejection stock', 'fomo late entry emotion', 'fomo news entry emotion'].map((text) => ({ text }));
+  const pairs = Core.similarityEdges(docs, 2).map((e) => `${e.a}-${e.b}`);
+  assert.ok(pairs.includes('0-1'), 'bitcoin notes');
+  assert.ok(pairs.includes('2-3'), 'tesla notes');
+  assert.ok(pairs.includes('4-5'), 'fomo notes');
+  assert.ok(!pairs.includes('0-5'), 'bitcoin and fomo are not linked');
+});
+
+test('layout3d: linked items end up closer, deterministic, within [-1, 1]', () => {
+  const edges = [{ a: 0, b: 1, w: 1 }, { a: 2, b: 3, w: 1 }, { a: 4, b: 5, w: 1 }];
+  const P = Core.layout3d(6, edges, { seed: 3 });
+  const d = (i, j) => Math.hypot(P[i][0] - P[j][0], P[i][1] - P[j][1], P[i][2] - P[j][2]);
+  assert.ok(d(0, 1) < d(0, 4) && d(2, 3) < d(2, 5));
+  assert.deepEqual(Core.layout3d(6, edges, { seed: 3 }), P);
+  assert.ok(P.every((p) => p.every((x) => x >= -1 && x <= 1)));
+});

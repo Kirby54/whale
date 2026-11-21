@@ -178,7 +178,7 @@ Do not invent anything that is not in the note.`;
     const already = new Set(parse(name).links.map((l) => l.toLowerCase()));
     const add = (r.links || []).map(clean).filter((l) => l && l.toLowerCase() !== name.toLowerCase() && !already.has(l.toLowerCase()));
     if (add.length) notes[name].content = notes[name].content.replace(/\s*$/, '') + `\n\nLinks: ${add.map((l) => `[[${resolve(l) || l}]]`).join(' · ')}\n`;
-    await Store.write(notes[name].path, notes[name].content);
+    await saveNote(name);
     return { up, add };
   }
 

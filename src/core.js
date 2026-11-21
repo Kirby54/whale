@@ -249,11 +249,110 @@
     return data.map((c) => (c && c.mapping ? fromChatGPT(c) : c && c.chat_messages ? fromClaude(c) : null)).filter((c) => c && c.msgs.length);
   }
 
+
+  /* ---------- Meaning: local similarity + 3D layout (no AI, nothing leaves the computer) ---------- */
+  const STOP_WORDS = new Set(('the and for are but not you your with from this that these those was were has have had does did can could should would about into over than then them they their there here all any more most less very also just been being our out its what why how when which who '
+    + 'les des une est pour pas que qui sur dans avec mes mon tes ton ses son elle nous vous ils elles cet cette ces quel quelle pourquoi comment quand fait faire plus moins tout tous tres bien aussi par aux sont ete etre '
+    + 'type trade note setup asset side entry stop exit result date tags summary source long short').split(' '));
+  // Words of a text, lowercased, accents removed, without very common words
+  function tokenize(text) {
+    return String(text || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !STOP_WORDS.has(w) && !/^\d+$/.test(w));
+  }
+  // Seeded random numbers so a layout is the same every time
+  function seededRandom(seed) {
+    let x = seed % 2147483647; if (x <= 0) x += 2147483646;
+    return () => (x = (x * 16807) % 2147483647) / 2147483647;
+  }
+  /* Similarity graph between documents with TF-IDF cosine similarity.
+     docs: [{ text }] -> edges [{ a, b, w }] (each document keeps its k most similar neighbors). */
+  function similarityEdges(docs, k = 5, minSim = 0.08) {
+    const n = docs.length, tfs = docs.map((d) => { const m = new Map(); tokenize(d.text).forEach((w) => m.set(w, (m.get(w) || 0) + 1)); return m; });
+    const df = new Map(); tfs.forEach((m) => m.forEach((_, w) => df.set(w, (df.get(w) || 0) + 1)));
+    const maxDf = Math.max(2, n * 0.5);
+    // weighted vectors, keeping the 30 strongest words per document
+    const vecs = tfs.map((m) => {
+      let v = [];
+      m.forEach((tf, w) => { const d = df.get(w); if (d > 1 && d <= maxDf) v.push([w, (1 + Math.log(tf)) * Math.log(n / d)]); });
+      v.sort((a, b) => b[1] - a[1]); v = v.slice(0, 30);
+      const norm = Math.sqrt(v.reduce((s, x) => s + x[1] * x[1], 0)) || 1;
+      return new Map(v.map(([w, x]) => [w, x / norm]));
+    });
+    const postings = new Map();
+    vecs.forEach((v, i) => v.forEach((x, w) => { if (!postings.has(w)) postings.set(w, []); postings.get(w).push([i, x]); }));
+    const edges = [], seen = new Set();
+    vecs.forEach((v, i) => {
+      const score = new Map();
+      v.forEach((x, w) => postings.get(w).forEach(([j, y]) => { if (j !== i) score.set(j, (score.get(j) || 0) + x * y); }));
+      [...score].filter((e) => e[1] >= minSim).sort((a, b) => b[1] - a[1]).slice(0, k).forEach(([j, w]) => {
+        const key = i < j ? i + ':' + j : j + ':' + i;
+        if (!seen.has(key)) { seen.add(key); edges.push({ a: Math.min(i, j), b: Math.max(i, j), w }); }
+      });
+    });
+    return edges;
+  }
+  /* Force-directed 3D layout: linked / similar items attract, everything else repels.
+     Returns n points, rotated so the longest spread is along x, scaled to about [-1, 1]. */
+  function layout3d(n, edges, { iterations = 220, seed = 7 } = {}) {
+    const rnd = seededRandom(seed);
+    const P = Array.from({ length: n }, () => [rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1]);
+    if (n < 2) return P.map(() => [0, 0, 0]);
+    const ideal = 1 / Math.cbrt(n);
+    for (let it = 0; it < iterations; it++) {
+      const temp = 0.12 * (1 - it / iterations) + 0.005;
+      const F = P.map(() => [0, 0, 0]);
+      // repulsion (sampled, so it stays fast for thousands of notes)
+      const samples = Math.min(n - 1, 12);
+      for (let i = 0; i < n; i++) {
+        for (let s = 0; s < samples; s++) {
+          const j = Math.floor(rnd() * n); if (j === i) continue;
+          const dx = P[i][0] - P[j][0], dy = P[i][1] - P[j][1], dz = P[i][2] - P[j][2];
+          const d2 = dx * dx + dy * dy + dz * dz + 1e-4, f = (ideal * ideal) / d2 * (n / samples) * 0.02;
+          F[i][0] += dx * f; F[i][1] += dy * f; F[i][2] += dz * f;
+        }
+      }
+      // attraction along edges
+      edges.forEach(({ a, b, w }) => {
+        const dx = P[b][0] - P[a][0], dy = P[b][1] - P[a][1], dz = P[b][2] - P[a][2];
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz) + 1e-6, f = (d / ideal) * w * 0.5;
+        const fx = (dx / d) * f, fy = (dy / d) * f, fz = (dz / d) * f;
+        F[a][0] += fx; F[a][1] += fy; F[a][2] += fz; F[b][0] -= fx; F[b][1] -= fy; F[b][2] -= fz;
+      });
+      for (let i = 0; i < n; i++) {
+        F[i][0] -= P[i][0] * 0.05; F[i][1] -= P[i][1] * 0.05; F[i][2] -= P[i][2] * 0.05; // gentle pull to the center
+        const m = Math.sqrt(F[i][0] ** 2 + F[i][1] ** 2 + F[i][2] ** 2) || 1, step = Math.min(m, temp) / m;
+        P[i][0] += F[i][0] * step; P[i][1] += F[i][1] * step; P[i][2] += F[i][2] * step;
+      }
+    }
+    return orient(P);
+  }
+  // Rotates points so their main direction is x (then y, z) and scales each axis to about [-1, 1]
+  function orient(P) {
+    const n = P.length, c = [0, 1, 2].map((k) => P.reduce((s, p) => s + p[k], 0) / n);
+    const Q = P.map((p) => [p[0] - c[0], p[1] - c[1], p[2] - c[2]]);
+    const cov = [0, 1, 2].map((a) => [0, 1, 2].map((b) => Q.reduce((s, q) => s + q[a] * q[b], 0) / n));
+    const mul = (v) => [0, 1, 2].map((r) => cov[r][0] * v[0] + cov[r][1] * v[1] + cov[r][2] * v[2]);
+    const unit = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return v.map((x) => x / l); };
+    const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let e1 = unit([1, 0.3, 0.1]); for (let i = 0; i < 50; i++) e1 = unit(mul(e1));
+    let e2 = unit([0.2, 1, 0.4]);
+    for (let i = 0; i < 50; i++) { e2 = mul(e2); const d = dot(e2, e1); e2 = unit([e2[0] - d * e1[0], e2[1] - d * e1[1], e2[2] - d * e1[2]]); }
+    const e3 = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    const R = Q.map((q) => [dot(q, e1), dot(q, e2), dot(q, e3)]);
+    [0, 1, 2].forEach((k) => {
+      const sorted = R.map((r) => Math.abs(r[k])).sort((a, b) => a - b);
+      const s = sorted[Math.floor((sorted.length - 1) * 0.95)] || 1;
+      R.forEach((r) => (r[k] = Math.max(-1, Math.min(1, r[k] / s))));
+    });
+    return R;
+  }
+
   return {
     IMG_EXT, LEGACY_KEYS, canonicalKey, stem, dirOf, safeName, reEsc,
     parseRaw, rOf, setPropsText, renameInContent, makeResolver,
     computeStats,
     parseCSV, normHeader, CSV_FIELDS, detectColumns, parseNumber, toDay, normSide, computeR,
     fromChatGPT, fromClaude, parseConversations,
+    tokenize, seededRandom, similarityEdges, layout3d, orient,
   };
 });

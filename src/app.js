@@ -1,11 +1,12 @@
 /* Whale — main interface */
 
 /* ---------- State ---------- */
-// notes: note name -> { path: "Trades/x.md", content: "...", mtime }
+// notes: note name -> { path: "Trades/x.md", content: "...", mtime (ms, as last seen on disk) }
 let notes = {};
 let cur = null, editing = true, view = 'note', vault = null; // editing = live-preview editor, otherwise reading view
 const closed = new Set();
 const pending = {}; // pending writes (debounced)
+const dirty = new Set(); // notes with changes not yet saved to disk (pending, retrying or in conflict)
 
 const TYPE_DIR = { trade: 'Trades', setup: 'Setups', asset: 'Assets', emotion: 'Emotions' };
 const TYPE_LABEL = { trade: 'Trade', setup: 'Setup', asset: 'Asset', emotion: 'Emotion / mistake', conversation: 'AI conversation', note: 'Note' };
@@ -38,20 +39,70 @@ async function loadAll() {
   const files = await Store.list();
   const next = {};
   files.sort((a, b) => byName(a.path, b.path)).forEach((f) => { next[stem(f.path)] = { path: f.path, content: f.content, mtime: f.mtime || 0 }; });
-  // keep text that is being typed and not written yet
-  Object.keys(pending).forEach((n) => { if (notes[n]) next[n] = notes[n]; });
+  // keep text that is being typed and not saved yet
+  dirty.forEach((n) => { if (notes[n]) next[n] = notes[n]; });
   notes = makeNotes(next);
 }
 function queueWrite(name) {
+  dirty.add(name);
   clearTimeout(pending[name]);
   pending[name] = setTimeout(() => flushOne(name), 400);
   status('Editing…');
 }
 async function flushOne(name) {
   clearTimeout(pending[name]); delete pending[name];
-  const n = notes[name]; if (!n) return;
-  try { await Store.write(n.path, n.content); status('Saved · ' + n.path); }
-  catch (e) { status('Error: ' + e); }
+  await saveNote(name);
+}
+/* Saves a note safely. The write is refused if the file was changed in another app since we last
+   read it (conflict dialog). If the disk write fails, the change is kept and retried. */
+const retryTimers = {};
+async function saveNote(name, { force = false } = {}) {
+  const n = notes[name]; if (!n) return true;
+  clearTimeout(retryTimers[name]);
+  try {
+    const m = await Store.write(n.path, n.content, force ? null : n.mtime);
+    if (m) n.mtime = m;
+    if (!pending[name]) dirty.delete(name);
+    status('Saved · ' + n.path);
+    return true;
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    dirty.add(name);
+    if (msg.includes('CONFLICT')) { await resolveConflict(name); return false; }
+    status(`Could not save ${n.path}, retrying… (${msg})`);
+    retryTimers[name] = setTimeout(() => saveNote(name), 3000);
+    return false;
+  }
+}
+let conflictOpen = false;
+async function resolveConflict(name) {
+  if (conflictOpen) return;
+  conflictOpen = true;
+  const mine = notes[name];
+  let theirs = null;
+  try { theirs = await Store.readNote(mine.path); } catch (e) {}
+  const useTheirs = () => { if (theirs) { mine.content = theirs.content; mine.mtime = theirs.mtime; } edNote = null; };
+  const finish = () => { conflictOpen = false; Modal.close(); refreshAll(); };
+  Modal.show(`<h2>This note was changed in another app</h2>
+    <div class="sub">"${esc(name)}" was modified on disk while you were editing it in Whale. Which version do you want to keep?</div>
+    <div class="actions" style="justify-content:flex-start">
+      <button class="tbtn ai" id="cfMine">Keep my version</button>
+      <button class="tbtn" id="cfTheirs">Use the other version</button>
+      <button class="tbtn" id="cfBoth">Keep both</button>
+    </div>
+    <div class="note">"Keep both" saves your version as a separate note next to the original.</div>`);
+  $('cfMine').onclick = async () => { conflictOpen = false; Modal.close(); await saveNote(name, { force: true }); refreshAll(); };
+  $('cfTheirs').onclick = () => { dirty.delete(name); useTheirs(); finish(); };
+  $('cfBoth').onclick = async () => {
+    const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '-');
+    const copy = `${name} (conflict ${stamp})`;
+    const path = (dirOf(mine.path) ? dirOf(mine.path) + '/' : '') + safeName(copy) + '.md';
+    try {
+      const m = await Store.write(path, mine.content);
+      notes[copy] = { path, content: mine.content, mtime: m || 0 };
+      dirty.delete(name); useTheirs(); finish();
+    } catch (e) { alert('Could not save the copy: ' + e); }
+  };
 }
 function flushAll() { return Promise.all(Object.keys(pending).map(flushOne)); }
 
@@ -86,7 +137,7 @@ function noteDate(name, p) {
   const d = (p.props.date || '').match(/\d{4}-\d{2}-\d{2}/) || name.match(/^\d{4}-\d{2}-\d{2}/);
   if (d) return d[0];
   const t = notes[name] && notes[name].mtime;
-  return t ? new Date(t * 1000).toISOString().slice(0, 10) : '';
+  return t ? new Date(t).toISOString().slice(0, 10) : '';
 }
 // Sets frontmatter properties (null = remove) while keeping the existing order
 function setProps(name, updates) { notes[name].content = Core.setPropsText(notes[name].content, updates); }
@@ -272,8 +323,8 @@ async function open(n) {
   await flushAll();
   if (!notes[n]) {
     const path = safeName(n) + '.md';
-    notes[n] = { path, content: `# ${n}\n\n` };
-    await Store.write(path, notes[n].content);
+    notes[n] = { path, content: `# ${n}\n\n`, mtime: 0 };
+    notes[n].mtime = (await Store.write(path, notes[n].content)) || 0;
     editing = true;
   }
   cur = n; setView('note'); renderTree();
@@ -304,13 +355,13 @@ async function newTrade() {
   let n = `${d} New trade`, i = 2;
   while (notes[n]) n = `${d} New trade ${i++}`;
   const content = `---\ntype: trade\ndate: ${d}\nasset: \nsetup: \nside: LONG\nentry: \nstop: \nexit: \nresult: \n---\n## Context\n\n\n## Mistakes / emotions\n\n`;
-  notes[n] = { path: `${TYPE_DIR.trade}/${safeName(n)}.md`, content };
-  await Store.write(notes[n].path, content);
+  notes[n] = { path: `${TYPE_DIR.trade}/${safeName(n)}.md`, content, mtime: 0 };
+  notes[n].mtime = (await Store.write(notes[n].path, content)) || 0;
   cur = n; editing = true; setView('note'); renderTree(); getEditor().focus();
 }
 async function deleteCur() {
   if (!cur || !confirm(`Move "${cur}" to the trash?\nThe file will be moved to the vault's .trash folder.`)) return;
-  clearTimeout(pending[cur]); delete pending[cur];
+  clearTimeout(pending[cur]); delete pending[cur]; clearTimeout(retryTimers[cur]); dirty.delete(cur);
   try { await Store.trash(notes[cur].path); delete notes[cur]; cur = null; renderTree(); renderNote(); status('Note moved to the trash'); }
   catch (e) { alert('Could not delete: ' + e); }
 }
@@ -322,11 +373,11 @@ async function renameCur(nn) {
   const old = cur, from = notes[old].path, d = dirOf(from);
   const to = (d ? d + '/' : '') + safeName(nn) + '.md';
   try { await Store.rename(from, to); } catch (e) { alert('Could not rename: ' + e); $('title').value = cur; return; }
-  notes[nn] = { path: to, content: notes[old].content }; delete notes[old];
+  notes[nn] = { path: to, content: notes[old].content, mtime: notes[old].mtime }; delete notes[old];
   // update [[old name]] links and asset/setup properties everywhere
   for (const k of Object.keys(notes)) {
     const c = notes[k].content, nc = Core.renameInContent(c, old, nn);
-    if (nc !== c) { notes[k].content = nc; await Store.write(notes[k].path, nc); }
+    if (nc !== c) { notes[k].content = nc; await saveNote(k); }
   }
   cur = nn; renderTree(); renderNote(); status('Renamed to ' + to);
 }
@@ -411,13 +462,16 @@ document.addEventListener('keydown', (e) => {
   if (k === 'n') { e.preventDefault(); newTrade(); }
   if (k === 's') { e.preventDefault(); flushAll(); }
 });
-// Re-read the disk when the window regains focus (files changed elsewhere)
-window.addEventListener('focus', async () => {
-  if (!vault || Object.keys(pending).length) return;
+// Re-read the disk when the window comes back (notes edited in another app show up;
+// notes with unsaved changes are kept and protected by the conflict check on save)
+async function reloadFromDisk() {
+  if (!vault || conflictOpen) return;
   const before = JSON.stringify(notes);
   await loadAll();
   if (JSON.stringify(notes) !== before) { renderTree(); if (view === 'note') renderNote(); if (view === 'dash') renderDash(); }
-});
+}
+window.addEventListener('focus', reloadFromDisk);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) reloadFromDisk(); });
 window.addEventListener('beforeunload', flushAll);
 
 /* ---------- Startup ---------- */

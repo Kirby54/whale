@@ -14,7 +14,7 @@ struct Vault(Mutex<PathBuf>);
 struct NoteFile {
     path: String, // relative to the vault, with "/"
     content: String,
-    mtime: u64, // last modified (Unix seconds)
+    mtime: u64, // last modified (Unix milliseconds), used to detect changes made elsewhere
 }
 
 /// AI settings, saved in the app's config folder (never in the vault).
@@ -144,13 +144,7 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<NoteFile>) {
             walk(root, &p, out);
         } else if p.extension().map(|x| x.eq_ignore_ascii_case("md")).unwrap_or(false) {
             if let (Ok(content), Ok(rel)) = (fs::read_to_string(&p), p.strip_prefix(root)) {
-                let mtime = e
-                    .metadata()
-                    .and_then(|m| m.modified())
-                    .ok()
-                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                    .map(|d| d.as_secs())
-                    .unwrap_or(0);
+                let mtime = mtime_ms(&p);
                 out.push(NoteFile {
                     path: rel.to_string_lossy().replace('\\', "/"),
                     content,
@@ -170,14 +164,59 @@ fn list_notes(state: State<Vault>) -> Vec<NoteFile> {
     out
 }
 
+/// Last modification time in milliseconds (0 if the file does not exist).
+fn mtime_ms(p: &Path) -> u64 {
+    fs::metadata(p)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+/// Safe write: the content goes to a hidden temporary file next to the note, which then
+/// replaces the note in one step. A crash in the middle can never leave a half-written note.
+fn atomic_write(full: &Path, content: &[u8]) -> std::io::Result<()> {
+    if let Some(dir) = full.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    let name = full.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let tmp = full.with_file_name(format!(".{name}.whale-tmp"));
+    {
+        use std::io::Write;
+        let mut f = fs::File::create(&tmp)?;
+        f.write_all(content)?;
+        f.sync_all()?; // make sure the bytes are on disk before replacing the note
+    }
+    fs::rename(&tmp, full).inspect_err(|_| {
+        let _ = fs::remove_file(&tmp);
+    })
+}
+
+/// Writes a note and returns its new modification time.
+/// `expected` is the modification time the interface last saw: if the file changed on disk
+/// since then (edited in another app), nothing is written and the error "CONFLICT" is returned.
 #[tauri::command]
-fn write_note(state: State<Vault>, path: String, content: String) -> Result<(), String> {
+fn write_note(state: State<Vault>, path: String, content: String, expected: Option<u64>) -> Result<u64, String> {
     let root = state.0.lock().unwrap().clone();
     let full = safe_join(&root, &path)?;
-    if let Some(dir) = full.parent() {
-        fs::create_dir_all(dir).map_err(err)?;
+    if let Some(exp) = expected.filter(|&e| e > 0) {
+        let now = mtime_ms(&full);
+        if now != 0 && now != exp {
+            return Err("CONFLICT".into());
+        }
     }
-    fs::write(full, content).map_err(err)
+    atomic_write(&full, content.as_bytes()).map_err(err)?;
+    Ok(mtime_ms(&full))
+}
+
+/// Reads one note from disk (used to show the other version after a conflict).
+#[tauri::command]
+fn read_note(state: State<Vault>, path: String) -> Result<NoteFile, String> {
+    let root = state.0.lock().unwrap().clone();
+    let full = safe_join(&root, &path)?;
+    let content = fs::read_to_string(&full).map_err(err)?;
+    Ok(NoteFile { path, content, mtime: mtime_ms(&full) })
 }
 
 #[tauri::command]
@@ -217,7 +256,7 @@ fn save_attachment(state: State<Vault>, name: String, data: Vec<u8>) -> Result<S
     let rel = format!("attachments/{name}");
     let full = safe_join(&root, &rel)?;
     fs::create_dir_all(root.join("attachments")).map_err(err)?;
-    fs::write(full, data).map_err(err)?;
+    atomic_write(&full, &data).map_err(err)?;
     Ok(rel)
 }
 
@@ -329,7 +368,7 @@ fn persist(app: &tauri::AppHandle, s: &Settings, key_in_file: bool) -> Result<()
     if !key_in_file {
         copy.claude_key.clear();
     }
-    fs::write(f, serde_json::to_string_pretty(&copy).map_err(err)?).map_err(err)
+    atomic_write(&f, serde_json::to_string_pretty(&copy).map_err(err)?.as_bytes()).map_err(err)
 }
 
 fn public(s: &Settings, key_in_file: bool) -> PublicSettings {
@@ -485,6 +524,7 @@ pub fn run() {
             set_vault,
             list_notes,
             write_note,
+            read_note,
             rename_note,
             trash_note,
             save_attachment,
@@ -517,6 +557,21 @@ mod tests {
         for bad in ["", "../secret.txt", "Trades/../../x.md", "/etc/passwd", "C:/Windows/x.md", r"\\serveur\partage\x.md", "."] {
             assert!(safe_join(root, bad).is_err(), "should refuse {bad:?}");
         }
+    }
+
+    #[test]
+    fn atomic_write_replaces_and_leaves_no_temp_file() {
+        let root = std::env::temp_dir().join(format!("whale-aw-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let f = root.join("Trades/a.md");
+        atomic_write(&f, b"one").unwrap();
+        atomic_write(&f, b"two").unwrap();
+        assert_eq!(fs::read_to_string(&f).unwrap(), "two");
+        let names: Vec<_> = fs::read_dir(root.join("Trades")).unwrap().flatten().map(|e| e.file_name()).collect();
+        assert_eq!(names.len(), 1, "no temporary file left behind");
+        assert!(mtime_ms(&f) > 0);
+        assert_eq!(mtime_ms(&root.join("missing.md")), 0);
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
