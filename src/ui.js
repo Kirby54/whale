@@ -65,3 +65,14 @@
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); pal.classList.contains('hide') ? openPal() : closePal(); }
   });
 })();
+
+/* ---------- Barre de titre intégrée (app desktop seulement) ---------- */
+(() => {
+  const T = window.__TAURI__;
+  if (!T || !T.window) return;
+  document.body.classList.add('desktop');
+  const win = T.window.getCurrentWindow();
+  $('winMin').onclick = () => win.minimize();
+  $('winMax').onclick = () => win.toggleMaximize();
+  $('winClose').onclick = async () => { await flushAll(); win.close(); };
+})();
