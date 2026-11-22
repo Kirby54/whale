@@ -1,11 +1,11 @@
-"""Pistes de logo Whale v2 : la queue de baleine, une forme unique et lisible.
-Lancer : python tools/logo2.py  -> assets/concepts/*.svg
+"""Whale logo options: the whale tail, one simple and readable shape.
+Run: python tools/logo.py  -> assets/concepts/*.svg
 """
 from pathlib import Path
 
 OUT = Path(__file__).resolve().parent.parent / "assets" / "concepts"
 
-# Points de la queue (boîte 512) : pointes, bord d'attaque, échancrure, tige
+# Tail points (512 box): tips, leading edge, notch, stem
 L1, Lt, L2, L4, L3 = (64, 160), (172, 212), (116, 256), (190, 302), (238, 332)
 R1, Rt, R2, R4, R3 = (448, 160), (340, 212), (396, 256), (322, 302), (274, 332)
 N, C, S = (256, 258), (256, 332), (256, 434)
@@ -21,7 +21,7 @@ def poly(pts, fill):
 
 
 def facets(left, right):
-    """Queue taillée comme une gemme : 5 facettes par côté, la lumière vient de la gauche."""
+    """Tail cut like a gem: 6 facets per side, light coming from the left."""
     lf = [(L1, Lt, L2), (L2, Lt, L4), (Lt, N, L4), (L4, N, L3), (L3, N, C), (L3, C, S)]
     rf = [(R1, Rt, R2), (R2, Rt, R4), (Rt, N, R4), (R4, N, R3), (R3, N, C), (R3, C, S)]
     return "".join(poly(p, c) for p, c in zip(lf, left)) + "".join(poly(p, c) for p, c in zip(rf, right))
@@ -38,7 +38,7 @@ def squircle(fill):
 
 
 def place(inner, scale=1.8, dy=10):
-    # centre la queue (boîte 64..448 x 160..434) dans l'icône de 1024
+    # centers the tail (box 64..448 x 160..434) in the 1024 icon
     tx = 512 - 256 * scale
     ty = 512 - 297 * scale + dy
     return f'<g transform="translate({tx:.1f} {ty:.1f}) scale({scale})">{inner}</g>'
@@ -59,18 +59,18 @@ def main():
             '<stop offset="0" stop-color="#4338ca"/><stop offset=".55" stop-color="#2563eb"/><stop offset="1" stop-color="#06b6d4"/>'
             '</linearGradient></defs>')
     concepts = {
-        # A : gemme océan (indigo à gauche, turquoise à droite)
-        "a-gemme-ocean": (facets(*OCEAN), "#0a0a12"),
-        # B : gemme violette, monochrome
-        "b-gemme-violette": (facets(*VIOLET), "#0c0a14"),
-        # C : queue blanche pleine sur dégradé, style icône moderne
-        "c-degrade": (f'<path d="{FLUKE}" fill="#fff"/>{water("#fff", 0.55)}', "url(#bg)"),
+        # A: ocean gem (indigo on the left, turquoise on the right)
+        "a-ocean-gem": (facets(*OCEAN), "#0a0a12"),
+        # B: violet gem, monochrome
+        "b-violet-gem": (facets(*VIOLET), "#0c0a14"),
+        # C: solid white tail on a gradient, modern app-icon style
+        "c-gradient": (f'<path d="{FLUKE}" fill="#fff"/>{water("#fff", 0.55)}', "url(#bg)"),
     }
     for name, (mark, bg) in concepts.items():
         defs = grad if bg.startswith("url") else ""
         (OUT / f"{name}-mark.svg").write_text(svg(mark, "40 140 432 380"), encoding="utf-8")
         (OUT / f"{name}-app.svg").write_text(svg(defs + squircle(bg) + place(mark), "0 0 1024 1024"), encoding="utf-8")
-    print("pistes écrites dans", OUT)
+    print("logo options written to", OUT)
 
 
 if __name__ == "__main__":

@@ -1,16 +1,16 @@
-/* Whale — vue « Cerveau » : un nuage de points en forme de baleine.
-   Chaque note est un point, coloré selon son dossier ; la poussière autour dessine la silhouette.
-   Légende des dossiers (survol / clic pour mettre en avant) et histogramme du temps (fenêtre glissable). */
+/* Whale — "Brain" view: a whale-shaped point cloud.
+   Every note is a point, colored by its folder; the dust around it draws the silhouette.
+   Folder legend (hover / click to highlight) and time histogram (draggable window). */
 window.Graph = (() => {
   const PALETTE = ['#8b7cf6', '#2dd4bf', '#4f8cf7', '#facc15', '#fb923c', '#4ade80', '#f472b6', '#f87171', '#22d3ee', '#a3e635', '#e879f9', '#94a3b8'];
-  let N_CLOUD = 7000; // grandit avec le coffre (1,6 point par note au minimum)
+  let N_CLOUD = 7000; // grows with the vault (at least 1.6 points per note)
   let R, S, C, G, pts, linkLines, ray, inited = false, running = false;
   let zoom = 1, ry = 0.25, rx = 0.1, drag = false, moved = 0, lx = 0, ly = 0, auto = true, tt = 0;
   let cloud = [], folders = [], folderOfPt = [], noteAt = {}, nameOfPt = {}, dateOfPt = {};
-  let selFolder = null, hoverFolder = null, hoverPt = null, range = null, bins = [], lit = null; // lit : notes allumées par l'IA
+  let selFolder = null, hoverFolder = null, hoverPt = null, range = null, bins = [], lit = null; // lit: notes lit up by the AI
   const wrap = $('graphview'), cv = $('gcanvas'), tip = $('gtip'), mouse = new THREE.Vector2(-9, -9);
 
-  /* ---------- Silhouette de baleine ---------- */
+  /* ---------- Whale silhouette ---------- */
   function whaleCloud() {
     let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
     const P = [];
@@ -22,16 +22,16 @@ window.Graph = (() => {
       P.push(new THREE.Vector3(-1.7 + 3.3 * t, y + 0.15 * Math.sin(t * 3), r * Math.sin(a)));
     }
     const rest = N_CLOUD - body;
-    // Nageoire caudale (horizontale), rattachée au bout du corps
+    // Tail fluke (horizontal), attached to the end of the body
     for (let i = 0; i < rest * 0.5; i++) { const s = Math.pow(rnd(), 0.8), side = rnd() < 0.5 ? -1 : 1, u = rnd(); P.push(new THREE.Vector3(1.55 + 0.5 * s + 0.12 * u * s, 0.05 + 0.1 * s + (rnd() - 0.5) * 0.04, side * (0.03 + 0.7 * s * (1 - 0.45 * u)))); }
-    // Nageoires pectorales
+    // Pectoral fins
     for (let i = 0; i < rest * 0.32; i++) { const s = rnd(), side = rnd() < 0.5 ? -1 : 1, w = (1 - s) * 0.18; P.push(new THREE.Vector3(-0.75 + 0.45 * s + (rnd() - 0.5) * w, -0.22 - 0.28 * s + (rnd() - 0.5) * 0.05, side * (0.28 + 0.5 * s + (rnd() - 0.5) * w))); }
-    // Aileron dorsal, posé sur le dos
+    // Dorsal fin, on the back
     while (P.length < N_CLOUD) { const s = rnd(), h = 0.2 * Math.pow(1 - s, 0.8) * Math.min(1, s / 0.25); P.push(new THREE.Vector3(0.38 + 0.36 * s, 0.3 + rnd() * h, (rnd() - 0.5) * 0.04)); }
     return { P, rnd };
   }
 
-  // (Re)crée le nuage et ses attributs pour N_CLOUD points
+  // (Re)creates the cloud and its attributes for N_CLOUD points
   function makeGeometry() {
     cloud = whaleCloud().P;
     const geo = new THREE.BufferGeometry().setFromPoints(cloud);
@@ -41,7 +41,7 @@ window.Graph = (() => {
     return geo;
   }
 
-  /* ---------- Initialisation WebGL ---------- */
+  /* ---------- WebGL setup ---------- */
   function init() {
     R = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
     R.setClearColor(0x000000, 1); R.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -90,7 +90,7 @@ window.Graph = (() => {
     R.setSize(w, h, false); C.aspect = w / h; C.updateProjectionMatrix(); drawHist();
   }
 
-  /* ---------- Données : dossiers, notes, régions ---------- */
+  /* ---------- Data: folders, notes, regions ---------- */
   const folderName = (path) => (path.includes('/') ? path.split('/')[0] : 'Notes');
   function build() {
     const names = Object.keys(notes);
@@ -98,11 +98,11 @@ window.Graph = (() => {
     if (needed !== N_CLOUD) { N_CLOUD = needed; pts.geometry.dispose(); pts.geometry = makeGeometry(); }
     const counts = {};
     names.forEach((n) => { const f = folderName(notes[n].path); counts[f] = (counts[f] || 0) + 1; });
-    folders = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, 'fr'))
+    folders = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, LOCALE))
       .map((name, i) => ({ name, count: counts[name], color: new THREE.Color(PALETTE[i % PALETTE.length]), hex: PALETTE[i % PALETTE.length] }));
     if (selFolder != null && !counts[selFolder]) selFolder = null;
 
-    // Chaque dossier occupe une tranche de la baleine (de la tête à la queue)
+    // Each folder takes a slice of the whale (from head to tail)
     const order = cloud.map((p, i) => [p.x, i]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
     const total = names.length || 1;
     const shares = folders.map((f) => Math.max(f.count / total, 0.06));
@@ -115,7 +115,7 @@ window.Graph = (() => {
     });
     if (!folders.length) order.forEach((i) => (folderOfPt[i] = -1));
 
-    // Placer chaque note sur un point de la tranche de son dossier
+    // Place each note on a point in its folder's slice
     noteAt = {}; nameOfPt = {}; dateOfPt = {};
     let seed = 3; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
     const byFolder = {}; names.sort().forEach((n) => { const f = folderName(notes[n].path); (byFolder[f] = byFolder[f] || []).push(n); });
@@ -130,7 +130,7 @@ window.Graph = (() => {
     buildBins(); renderLegend(); style(); drawHist();
   }
 
-  /* ---------- Apparence des points ---------- */
+  /* ---------- Point appearance ---------- */
   function inRange(idx) {
     if (!range) return true;
     const d = dateOfPt[idx]; if (!d) return false;
@@ -168,11 +168,11 @@ window.Graph = (() => {
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); linkLines.geometry = g;
   }
 
-  /* ---------- Légende des dossiers ---------- */
+  /* ---------- Folder legend ---------- */
   function renderLegend() {
     const el = $('glegend');
     el.classList.toggle('sel', selFolder != null);
-    el.innerHTML = `<div class="lh"><span>DOSSIERS</span><span>${folders.length}</span></div>` +
+    el.innerHTML = `<div class="lh"><span>FOLDERS</span><span>${folders.length}</span></div>` +
       folders.map((f, i) => `<div class="lr ${selFolder === f.name ? 'on' : ''}" data-i="${i}"><i style="background:${f.hex}"></i><span>${esc(f.name)}</span><span class="c">${f.count}</span></div>`).join('');
     el.querySelectorAll('.lr').forEach((r) => {
       const i = +r.dataset.i;
@@ -182,7 +182,7 @@ window.Graph = (() => {
     });
   }
 
-  /* ---------- Histogramme du temps ---------- */
+  /* ---------- Time histogram ---------- */
   const hc = $('ghist'); let hDrag = null;
   const addDays = (d, k) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + k); return x.toISOString().slice(0, 10); };
   function buildBins() {
@@ -212,9 +212,9 @@ window.Graph = (() => {
       x.fillRect(i * bw + 0.5, H - h, Math.max(1, bw - 1.5), h);
     });
     if (range && i0 >= 0) { x.strokeStyle = '#e5e5e5'; x.lineWidth = 1; x.strokeRect(i0 * bw + 0.5, 0.5, (i1 - i0 + 1) * bw - 1, H - 1); }
-    const fmt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+    const fmt = (d) => new Date(d + 'T12:00:00').toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' });
     const nIn = range ? Object.keys(dateOfPt).filter((k) => inRange(+k)).length : Object.keys(nameOfPt).length;
-    $('ghistlabel').textContent = range ? `${fmt(range[0])} → ${fmt(range[1])} · ${nIn} notes` : `${fmt(bins[0].from)} → ${fmt(bins[bins.length - 1].to)} · double-clic : tout`;
+    $('ghistlabel').textContent = range ? `${fmt(range[0])} → ${fmt(range[1])} · ${nIn} notes` : `${fmt(bins[0].from)} → ${fmt(bins[bins.length - 1].to)} · double-click: all`;
   }
   function initHist() {
     const binAt = (e) => { const b = hc.getBoundingClientRect(); return Math.max(0, Math.min(bins.length - 1, Math.floor(((e.clientX - b.left) / b.width) * bins.length))); };
@@ -242,7 +242,7 @@ window.Graph = (() => {
     hc.addEventListener('dblclick', () => { range = null; lit = null; drawHist(); style(); });
   }
 
-  /* ---------- Boucle d'animation ---------- */
+  /* ---------- Animation loop ---------- */
   function frame() {
     if (!running) return;
     tt += 0.016; if (auto && !drag) ry += 0.0012;
@@ -251,7 +251,7 @@ window.Graph = (() => {
     pts.material.uniforms.uDist.value = d;
     G.rotation.set(rx, ry, 0.03 * Math.sin(tt * 0.6)); G.position.set(-0.2, 0.3 + 0.03 * Math.sin(tt * 0.8), 0); G.updateMatrixWorld();
 
-    // Survol : la note la plus proche du curseur
+    // Hover: the note closest to the cursor
     ray.params.Points.threshold = 0.035 * zoom;
     ray.setFromCamera(mouse, C);
     let best = null;
@@ -265,7 +265,7 @@ window.Graph = (() => {
     requestAnimationFrame(frame);
   }
 
-  // Appelé par l'IA : met en avant un dossier, une période et/ou des notes. Renvoie le nombre de notes allumées.
+  // Called by the AI: highlights a folder, a period and/or notes. Returns the number of notes lit.
   function focus({ folder, from, to, names } = {}) {
     selFolder = folder && folders.some((f) => f.name === folder) ? folder : null;
     range = from && to && /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) ? [from <= to ? from : to, from <= to ? to : from] : null;

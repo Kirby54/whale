@@ -1,30 +1,30 @@
-/* Whale — menu « Plus », palette Ctrl+K (chercher ou demander) et statut de l'IA */
+/* Whale — "More" menu, Ctrl+K palette (search or ask) and AI status */
 (() => {
-  /* ---------- Menu Plus ---------- */
+  /* ---------- More menu ---------- */
   $('btnMore').onclick = (e) => { e.stopPropagation(); $('more').classList.toggle('hide'); };
   document.addEventListener('click', (e) => { if (!e.target.closest('#more') && e.target.id !== 'btnMore') $('more').classList.add('hide'); });
 
-  /* ---------- Statut de l'IA (bas de la barre) ---------- */
+  /* ---------- AI status (bottom of the sidebar) ---------- */
   let running = 0;
   const raw = Store.ai;
   const showStatus = () => {
     const el = $('aistatus');
     el.classList.toggle('run', running > 0);
-    el.textContent = running > 0 ? 'IA EN COURS' : 'AUCUNE IA EN COURS';
+    el.textContent = running > 0 ? 'AI RUNNING' : 'NO AI RUNNING NOW';
   };
   Store.ai = async (body) => { running++; showStatus(); try { return await raw(body); } finally { running--; showStatus(); } };
 
-  /* ---------- Palette Ctrl+K ---------- */
+  /* ---------- Ctrl+K palette ---------- */
   const ACTIONS = [
-    ['Écrire un nouveau trade', () => newTrade()],
-    ['Ouvrir le cerveau', () => setView('graph')],
-    ['Importer des notes, conversations ou trades', () => Importer.open()],
-    ['Tableau de bord', () => setView('dash')],
+    ['Write a new trade', () => newTrade()],
+    ['Open the brain', () => setView('graph')],
+    ['Import notes, conversations or trades', () => Importer.open()],
+    ['Dashboard', () => setView('dash')],
     ['Timeline', () => setView('timeline')],
-    ['Tableau des trades', () => setView('table')],
-    ['Classer toutes les notes sans tags (IA)', () => AI.classifyAll()],
-    ["Réglages de l'IA", () => AI.openSettings()],
-    ['Changer de coffre', () => changeVault()],
+    ['Trades table', () => setView('table')],
+    ['Classify all notes without tags (AI)', () => AI.classifyAll()],
+    ['AI settings', () => AI.openSettings()],
+    ['Change vault', () => changeVault()],
   ];
   let items = [], sel = 0;
   const pal = $('palette'), inp = $('pinput');
@@ -34,7 +34,7 @@
   function render() {
     const q = inp.value.trim(), ql = q.toLowerCase();
     items = [];
-    if (q) items.push({ label: `<span class="ask">✦ Demander à l'IA :</span> ${esc(q)}`, hint: 'Entrée', run: () => { setView('ask'); setTimeout(() => { $('askinput').value = q; $('askform').requestSubmit(); }, 30); } });
+    if (q) items.push({ label: `<span class="ask">✦ Ask the AI:</span> ${esc(q)}`, hint: 'Enter', run: () => { setView('ask'); setTimeout(() => { $('askinput').value = q; $('askform').requestSubmit(); }, 30); } });
     const names = Object.keys(notes);
     let found;
     if (q) {
@@ -47,7 +47,7 @@
     sel = 0; paint();
   }
   function paint() {
-    $('presults').innerHTML = items.map((it, i) => `<div class="pr ${i === sel ? 'on' : ''}" data-i="${i}">${it.label}<small>${it.hint || ''}</small></div>`).join('') || '<div class="pr">Aucun résultat</div>';
+    $('presults').innerHTML = items.map((it, i) => `<div class="pr ${i === sel ? 'on' : ''}" data-i="${i}">${it.label}<small>${it.hint || ''}</small></div>`).join('') || '<div class="pr">No results</div>';
     const on = $('presults').querySelector('.pr.on'); if (on) on.scrollIntoView({ block: 'nearest' });
   }
   function run(i) { const it = items[i]; if (!it) return; closePal(); it.run(); }
@@ -66,7 +66,7 @@
   });
 })();
 
-/* ---------- Barre de titre intégrée (app desktop seulement) ---------- */
+/* ---------- Built-in title bar (desktop app only) ---------- */
 (() => {
   const T = window.__TAURI__;
   if (!T || !T.window) return;
@@ -77,12 +77,12 @@
   $('winClose').onclick = async () => { await flushAll(); win.close(); };
 })();
 
-/* ---------- Choix du logo (3 pistes) ---------- */
+/* ---------- Logo picker (3 options) ---------- */
 (() => {
   const LOGOS = {
-    a: { name: 'Gemme océan', mark: 'img/logo-a.svg', app: 'img/logo-a-app.svg', icons: 'a-gemme-ocean' },
-    b: { name: 'Gemme violette', mark: 'img/logo-b.svg', app: 'img/logo-b-app.svg', icons: 'b-gemme-violette' },
-    c: { name: 'Dégradé', mark: 'img/logo-c.svg', app: 'img/logo-c.svg', icons: 'c-degrade' },
+    a: { name: 'Ocean gem', mark: 'img/logo-a.svg', app: 'img/logo-a-app.svg' },
+    b: { name: 'Violet gem', mark: 'img/logo-b.svg', app: 'img/logo-b-app.svg' },
+    c: { name: 'Gradient', mark: 'img/logo-c.svg', app: 'img/logo-c.svg' },
   };
   let current = 'a';
   try { const s = localStorage.getItem('whale-logo'); if (LOGOS[s]) current = s; } catch (e) {}
@@ -94,11 +94,11 @@
   apply(current);
   $('btnLogo').onclick = () => {
     $('more').classList.add('hide');
-    Modal.show(`<h2>Choisir le logo</h2>
-      <div class="sub">Le logo change tout de suite dans la barre de titre et la barre latérale.</div>
+    Modal.show(`<h2>Choose the logo</h2>
+      <div class="sub">The logo changes right away in the title bar and the sidebar.</div>
       <div class="logos">${Object.keys(LOGOS).map((k) => `<button data-k="${k}" class="${k === current ? 'on' : ''}"><img src="${LOGOS[k].app}" alt="">${LOGOS[k].name}</button>`).join('')}</div>
-      <div class="note" style="margin-top:12px">L'icône du fichier .exe et de la barre des tâches est fixée à la compilation. Pour la changer : <code>npx tauri icon assets/concepts/&lt;nom&gt;-app.svg</code>, puis recompiler.</div>
-      <div class="actions"><button class="tbtn" id="logoOk">Fermer</button></div>`);
+      <div class="note" style="margin-top:12px">The .exe and taskbar icon is set at build time. To change it: <code>npx tauri icon assets/concepts/&lt;name&gt;-app.svg</code> (a-ocean-gem, b-violet-gem or c-gradient), then rebuild.</div>
+      <div class="actions"><button class="tbtn" id="logoOk">Close</button></div>`);
     document.querySelectorAll('.logos button').forEach((b) => (b.onclick = () => {
       apply(b.dataset.k);
       document.querySelectorAll('.logos button').forEach((x) => x.classList.toggle('on', x === b));

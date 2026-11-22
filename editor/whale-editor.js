@@ -1,6 +1,6 @@
-/* Whale — éditeur Markdown avec aperçu en direct (comme Obsidian), basé sur CodeMirror 6.
-   Compilé par esbuild vers src/vendor/editor.bundle.js (npm run build:editor).
-   La syntaxe (#, **, [[ ]]…) est cachée et rendue partout, sauf sur la ligne où se trouve le curseur. */
+/* Whale — Markdown editor with live preview (like Obsidian), built on CodeMirror 6.
+   Bundled by esbuild into src/vendor/editor.bundle.js (npm run build:editor).
+   Syntax (#, **, [[ ]]…) is hidden and rendered everywhere except on the line holding the cursor. */
 import { EditorState, EditorSelection, StateEffect } from '@codemirror/state';
 import { EditorView, Decoration, ViewPlugin, WidgetType, keymap, drawSelection, placeholder, dropCursor } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
@@ -14,7 +14,7 @@ const IMG = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
 const refresh = StateEffect.define();
 const MONO = 'ui-monospace,"Cascadia Code",Consolas,monospace';
 
-/* ---------- Widgets (éléments rendus à la place de la syntaxe) ---------- */
+/* ---------- Widgets (elements rendered in place of the syntax) ---------- */
 class WikiLink extends WidgetType {
   constructor(label, target, exists, open) { super(); this.label = label; this.target = target; this.exists = exists; this.open = open; }
   eq(o) { return o.label === this.label && o.target === this.target && o.exists === this.exists; }
@@ -22,7 +22,7 @@ class WikiLink extends WidgetType {
     const s = document.createElement('span');
     s.className = 'cm-wikilink' + (this.exists ? '' : ' cm-unresolved');
     s.textContent = this.label;
-    s.title = this.exists ? this.target : `${this.target} (note à créer)`;
+    s.title = this.exists ? this.target : `${this.target} (note not created yet)`;
     s.onmousedown = (e) => { if (e.button === 0) { e.preventDefault(); this.open(this.target); } };
     return s;
   }
@@ -37,8 +37,8 @@ class ImageEmbed extends WidgetType {
     const img = document.createElement('img');
     img.alt = this.src;
     wrap.appendChild(img);
-    Promise.resolve(this.resolve(this.src)).then((url) => { if (url) img.src = url; else wrap.textContent = 'Image introuvable : ' + this.src; })
-      .catch(() => { wrap.textContent = 'Image introuvable : ' + this.src; });
+    Promise.resolve(this.resolve(this.src)).then((url) => { if (url) img.src = url; else wrap.textContent = 'Image not found: ' + this.src; })
+      .catch(() => { wrap.textContent = 'Image not found: ' + this.src; });
     return wrap;
   }
 }
@@ -68,7 +68,7 @@ const hide = Decoration.replace({});
 const line = (cls) => Decoration.line({ class: cls });
 const mark = (cls) => Decoration.mark({ class: cls });
 
-/* ---------- Aperçu en direct ---------- */
+/* ---------- Live preview ---------- */
 function frontmatterEnd(doc) {
   if (doc.lines < 2 || doc.line(1).text !== '---') return 0;
   for (let i = 2; i <= Math.min(doc.lines, 200); i++) if (doc.line(i).text === '---') return i;
@@ -86,7 +86,7 @@ function build(view, opts) {
   const add = (from, to, deco) => out.push(deco.range(from, to));
   const isActive = (pos) => active.has(doc.lineAt(pos).number);
 
-  // Propriétés (frontmatter) : bloc discret en police mono
+  // Properties (frontmatter): a discreet monospace block
   for (let i = 1; i <= fmEnd; i++) {
     const l = doc.line(i);
     add(l.from, l.from, line('cm-fm' + (i === 1 ? ' cm-fm-first' : '') + (i === fmEnd ? ' cm-fm-last' : '')));
@@ -125,7 +125,7 @@ function build(view, opts) {
           const txt = doc.sliceString(n.from, n.to);
           const next = doc.sliceString(n.to, n.to + 4);
           if (/^[-*+]$/.test(txt) && !/^ \[[ xX]\]/.test(next)) add(n.from, n.to, Decoration.replace({ widget: new Bullet() }));
-          else if (/^[-*+]$/.test(txt)) add(n.from, n.to + 1, hide); // tâche : la case remplace le tiret
+          else if (/^[-*+]$/.test(txt)) add(n.from, n.to + 1, hide); // task: the checkbox replaces the dash
         } else if (name === 'TaskMarker') {
           const checked = /x/i.test(doc.sliceString(n.from, n.to));
           add(n.from, n.to, Decoration.replace({ widget: new Checkbox(checked, n.from) }));
@@ -136,7 +136,7 @@ function build(view, opts) {
       },
     });
 
-    // Liens [[...]], images ![[...]] et #tags (pas gérés par le parseur Markdown)
+    // [[links]], ![[images]] and #tags (not handled by the Markdown parser)
     const text = doc.sliceString(from, to);
     const reLink = /(!?)\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g;
     let m;
@@ -170,7 +170,7 @@ function livePreview(opts) {
   }, { decorations: (v) => v.decorations });
 }
 
-/* ---------- Autocomplétion : [[note]] et #tag ---------- */
+/* ---------- Autocompletion: [[note]] and #tag ---------- */
 function completions(opts) {
   const wiki = (ctx) => {
     const m = ctx.matchBefore(/!?\[\[[^\]\n]*$/);
@@ -193,13 +193,13 @@ function completions(opts) {
     const m = ctx.matchBefore(/(?:^|[\s(])#[\p{L}\d_\-/]*$/u);
     if (!m) return null;
     const start = m.from + m.text.indexOf('#') + 1;
-    if (ctx.state.doc.lineAt(ctx.pos).text.startsWith('#') && start === ctx.state.doc.lineAt(ctx.pos).from + 1) return null; // titre
+    if (ctx.state.doc.lineAt(ctx.pos).text.startsWith('#') && start === ctx.state.doc.lineAt(ctx.pos).from + 1) return null; // heading
     return { from: start, validFor: /^[\p{L}\d_\-/]*$/u, options: opts.getTags().map((x) => ({ label: x, type: 'keyword' })) };
   };
   return autocompletion({ override: [wiki, tag], icons: false, maxRenderedOptions: 40 });
 }
 
-/* ---------- Raccourcis de mise en forme ---------- */
+/* ---------- Formatting shortcuts ---------- */
 function wrap(markStr) {
   return (view) => {
     view.dispatch(view.state.changeByRange((r) => {
@@ -223,7 +223,7 @@ function toggleTask(view) {
   return true;
 }
 
-/* ---------- Thème sombre ---------- */
+/* ---------- Dark theme ---------- */
 const theme = EditorView.theme({
   '&': { color: '#dcddde', backgroundColor: 'transparent', fontSize: '16px' },
   '&.cm-focused': { outline: 'none' },
@@ -282,7 +282,7 @@ const highlight = HighlightStyle.define([
   { tag: t.list, color: '#dcddde' },
 ]);
 
-/* ---------- API publique ---------- */
+/* ---------- Public API ---------- */
 function create(parent, opts) {
   const extensions = [
     history(),
@@ -296,7 +296,7 @@ function create(parent, opts) {
     completions(opts),
     search({ top: true }),
     highlightSelectionMatches(),
-    placeholder(opts.placeholder || 'Écris ici…'),
+    placeholder(opts.placeholder || 'Start writing…'),
     livePreview(opts),
     theme,
     keymap.of([

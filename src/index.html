@@ -1,5 +1,5 @@
-﻿<!doctype html>
-<html lang="fr">
+<!doctype html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,52 +13,52 @@
     <span data-tauri-drag-region>Whale</span>
   </div>
   <div class="tb-btns">
-    <button id="winMin" title="Réduire" aria-label="Réduire"><svg viewBox="0 0 10 10"><path d="M1 5h8"/></svg></button>
-    <button id="winMax" title="Agrandir" aria-label="Agrandir"><svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7"/></svg></button>
-    <button id="winClose" title="Fermer" aria-label="Fermer"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></button>
+    <button id="winMin" title="Minimize" aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M1 5h8"/></svg></button>
+    <button id="winMax" title="Maximize" aria-label="Maximize"><svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7"/></svg></button>
+    <button id="winClose" title="Close" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></button>
   </div>
 </div>
 <div id="app">
   <nav id="nav">
     <div id="brand"><img id="brandLogo" data-logo src="img/logo-a.svg" alt=""><span class="b1">whale</span><span class="b2">journal</span></div>
     <div id="brandbar"></div>
-    <button id="openPalette"><span>Chercher</span><kbd>Ctrl K</kbd></button>
+    <button id="openPalette"><span>Ask or search</span><kbd>Ctrl K</kbd></button>
     <div class="navlinks">
-      <button class="nl" id="btnGraph">Cerveau</button>
+      <button class="nl" id="btnGraph">Brain</button>
       <button class="nl" id="btnNotes">Notes</button>
-      <button class="nl" id="btnNew">Écrire</button>
+      <button class="nl" id="btnNew">Write</button>
     </div>
     <div class="navlinks">
-      <button class="nl" id="btnImport">Ajouter</button>
-      <button class="nl" id="btnMore">Plus</button>
+      <button class="nl" id="btnImport">Add</button>
+      <button class="nl" id="btnMore">More</button>
     </div>
     <div id="more" class="hide">
-      <button class="mi" id="btnAsk">Demander à l'IA</button>
-      <button class="mi" id="btnDash">Tableau de bord</button>
+      <button class="mi" id="btnAsk">Ask the AI</button>
+      <button class="mi" id="btnDash">Dashboard</button>
       <button class="mi" id="btnTimeline">Timeline</button>
-      <button class="mi" id="btnTable">Tableau des trades</button>
+      <button class="mi" id="btnTable">Trades table</button>
       <div class="msep"></div>
-      <button class="mi" id="btnSettings">Réglages de l'IA</button>
-      <button class="mi" id="btnLogo">Choisir le logo</button>
-      <button class="mi" id="btnVault">Changer de coffre</button>
+      <button class="mi" id="btnSettings">AI settings</button>
+      <button class="mi" id="btnLogo">Choose the logo</button>
+      <button class="mi" id="btnVault">Change vault</button>
     </div>
     <div style="flex:1"></div>
     <div id="status"></div>
-    <div id="aistatus">AUCUNE IA EN COURS</div>
+    <div id="aistatus">NO AI RUNNING NOW</div>
   </nav>
 
   <aside id="side">
     <div id="sidehead"><span id="vault" title=""></span></div>
-    <input id="search" placeholder="Filtrer les notes…" autocomplete="off">
+    <input id="search" placeholder="Filter notes…" autocomplete="off">
     <div id="tree"></div>
   </aside>
 
   <main id="main">
     <div id="tabbar">
       <div id="crumb"></div>
-      <button class="tbtn ai" id="btnClassify" title="L'IA remplit le type, les tags, les propriétés et les liens">✦ Classer avec l'IA</button>
-      <button class="tbtn" id="btnMode" title="Ctrl+E">Édition</button>
-      <button class="tbtn" id="btnDel" title="Déplacer dans la corbeille du coffre">Supprimer</button>
+      <button class="tbtn ai" id="btnClassify" title="The AI fills in the type, tags, properties and links">✦ Classify with AI</button>
+      <button class="tbtn" id="btnMode" title="Ctrl+E">Edit</button>
+      <button class="tbtn" id="btnDel" title="Move to the vault's trash">Delete</button>
     </div>
     <div id="views">
       <section class="view on" id="noteview">
@@ -72,7 +72,7 @@
         <canvas id="gcanvas"></canvas>
         <div id="gtip"></div>
         <div id="glegend"></div>
-        <button id="apOpen" class="hide">✦ Ton IA</button>
+        <button id="apOpen" class="hide">✦ Your AI</button>
         <div id="ghistwrap"><canvas id="ghist"></canvas><div id="ghistlabel"></div></div>
       </section>
       <section class="view" id="dashview"><div id="dash"></div></section>
@@ -82,8 +82,8 @@
         <div id="askcol">
           <div id="chat"></div>
           <form id="askform">
-            <textarea id="askinput" rows="1" placeholder="Pose une question à ton journal… ex. « Pourquoi je perds sur TSLA ? »"></textarea>
-            <button class="tbtn ai" id="asksend" type="submit">Envoyer</button>
+            <textarea id="askinput" rows="1" placeholder="Ask your journal… e.g. &quot;Why am I losing on TSLA?&quot;"></textarea>
+            <button class="tbtn ai" id="asksend" type="submit">Send</button>
           </form>
           <div id="askhint"></div>
         </div>
@@ -92,24 +92,24 @@
   </main>
 
   <aside id="aipanel" class="hide">
-    <div class="aph"><span>Ton IA</span><button id="apClose" title="Fermer" aria-label="Fermer le panneau">×</button></div>
+    <div class="aph"><span>Your AI</span><button id="apClose" title="Close" aria-label="Close the panel">×</button></div>
     <div id="apchat"></div>
     <form id="apform">
-      <textarea id="apinput" rows="1" placeholder="Demande à ton journal…"></textarea>
-      <button id="apsend" type="submit" aria-label="Envoyer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+      <textarea id="apinput" rows="1" placeholder="Ask your journal…"></textarea>
+      <button id="apsend" type="submit" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
     </form>
   </aside>
 
   <aside id="right">
-    <div class="rh"><span>Rétroliens</span><span id="blc"></span></div>
+    <div class="rh"><span>Backlinks</span><span id="blc"></span></div>
     <div id="backlinks"></div>
-    <div class="rh" style="margin-top:18px"><span>Liens sortants</span><span id="olc"></span></div>
+    <div class="rh" style="margin-top:18px"><span>Outgoing links</span><span id="olc"></span></div>
     <div id="outlinks"></div>
   </aside>
 </div>
 <div id="palette" class="modal hide">
   <div class="pbox">
-    <input id="pinput" placeholder="Cherche une note, ou pose une question…" autocomplete="off" spellcheck="false">
+    <input id="pinput" placeholder="Search a note, or ask a question…" autocomplete="off" spellcheck="false">
     <div id="presults"></div>
   </div>
 </div>

@@ -1,7 +1,7 @@
 [package]
 name = "whale"
 version = "0.1.0"
-description = "Whale — journal de trading local et open source"
+description = "Whale — local-first, open-source trading journal and second brain"
 edition = "2021"
 license = "MIT"
 

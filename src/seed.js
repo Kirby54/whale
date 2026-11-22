@@ -1,173 +1,173 @@
-// Notes d'exemple écrites dans un coffre neuf au premier lancement.
+// Example notes written into a brand-new vault on first launch.
 window.SEED = [
-['Bienvenue.md',`---
+['Welcome.md',`---
 type: note
 ---
-# Bienvenue dans Whale 🐋
+# Welcome to Whale 🐋
 
-Whale est un journal de trading **local** et **open source**, inspiré d'Obsidian.
-Chaque note est un vrai fichier \`.md\` dans le dossier de ton coffre : tu peux l'ouvrir avec n'importe quel éditeur.
+Whale is a **local** and **open-source** trading journal that is also a second brain.
+Every note is a real \`.md\` file in your vault folder: you can open it with any editor.
 
-- Relie tes notes avec des doubles crochets : par exemple [[Breakout]], [[TSLA]] ou [[FOMO]].
-- Ouvre la **vue graphique** (Ctrl+G) pour voir ton journal en forme de baleine.
-- Le **tableau de bord** calcule ton taux de réussite et ton R moyen à partir des propriétés.
-- Colle une capture de chart avec **Ctrl+V** en mode édition : elle est rangée dans \`attachments/\`.
+- Link notes with double brackets: for example [[Breakout]], [[TSLA]] or [[FOMO]].
+- Open the **Brain** to see your journal as a whale. Ask **Your AI** on the right to light up notes.
+- The **Dashboard** computes your win rate and average R from the properties.
+- Paste a chart screenshot with **Ctrl+V** while editing: it is saved in \`attachments/\`.
 
-> Raccourcis : Ctrl+E lecture / édition · Ctrl+N nouveau trade · Ctrl+G vue graphique`],
+> Shortcuts: Ctrl+K ask or search · Ctrl+N new trade · Ctrl+E edit / read · Ctrl+G brain`],
 ['Setups/Breakout.md',`---
 type: setup
 ---
 # Breakout
 
-Cassure d'une résistance avec volume au-dessus de la moyenne.
+Break of a resistance with above-average volume.
 
-## Règles
-- Attendre la clôture de bougie au-dessus du niveau
-- Volume > 1,5× la moyenne 20 périodes
-- Stop sous le dernier creux
+## Rules
+- Wait for the candle to close above the level
+- Volume > 1.5× the 20-period average
+- Stop below the last swing low
 
-Voir aussi [[Pullback]].`],
+See also [[Pullback]].`],
 ['Setups/Pullback.md',`---
 type: setup
 ---
 # Pullback
 
-Retour sur une zone de support dans une tendance haussière.
+Pullback to a support zone in an uptrend.
 
-## Règles
-- Tendance confirmée sur l'UT supérieure
-- Entrée sur bougie de rejet
-- Cible : précédent plus haut`],
-['Actifs/TSLA.md',`---
-type: actif
-marche: Actions US
+## Rules
+- Trend confirmed on the higher timeframe
+- Enter on a rejection candle
+- Target: previous high`],
+['Assets/TSLA.md',`---
+type: asset
+market: US stocks
 ---
 # TSLA
 
-Très volatile autour des résultats et des annonces. Réduire la taille avant les earnings.`],
-['Actifs/BTC.md',`---
-type: actif
-marche: Crypto
+Very volatile around earnings and announcements. Size down before earnings.`],
+['Assets/BTC.md',`---
+type: asset
+market: Crypto
 ---
 # BTC
 
-Respecte bien les niveaux ronds. Attention aux mèches le week-end.`],
-['Actifs/EURUSD.md',`---
-type: actif
-marche: Forex
+Respects round numbers well. Watch out for weekend wicks.`],
+['Assets/EURUSD.md',`---
+type: asset
+market: Forex
 ---
 # EURUSD
 
-Meilleure volatilité à l'ouverture de Londres et de New York.`],
-['Émotions/FOMO.md',`---
+Best volatility at the London and New York opens.`],
+['Emotions/FOMO.md',`---
 type: emotion
 ---
 # FOMO
 
-Entrer en retard par peur de rater le mouvement. Résultat : stop mal placé et R:R dégradé.
+Entering late out of fear of missing the move. Result: badly placed stop and a worse R:R.
 
-**Règle** : si le prix est à plus de 1 ATR du niveau, je ne rentre pas.`],
-['Émotions/Stop trop serré.md',`---
+**Rule**: if price is more than 1 ATR away from the level, I stay out.`],
+['Emotions/Stop too tight.md',`---
 type: emotion
 ---
-# Stop trop serré
+# Stop too tight
 
-Stop placé dans le bruit du marché, sorti avant le vrai mouvement.`],
+Stop placed inside market noise, taken out before the real move.`],
 ['Trades/2026-11-03 TSLA long.md',`---
 type: trade
-actif: TSLA
+asset: TSLA
 setup: Breakout
-sens: LONG
-entree: 242.5
+side: LONG
+entry: 242.5
 stop: 238
-sortie: 251
-resultat: 1.9
+exit: 251
+result: 1.9
 ---
-## Contexte
-Cassure propre de la résistance à 241 sur [[TSLA]], volume élevé. Setup [[Breakout]] classique.
+## Context
+Clean break of the 241 resistance on [[TSLA]], high volume. Classic [[Breakout]] setup.
 
-## Ce qui a marché
-- Patience jusqu'à la clôture
-- Sortie partielle à TP1`],
+## What worked
+- Waited for the close
+- Partial exit at TP1`],
 ['Trades/2026-11-05 BTC short.md',`---
 type: trade
-actif: BTC
+asset: BTC
 setup: Pullback
-sens: SHORT
-entree: 71200
+side: SHORT
+entry: 71200
 stop: 72100
-sortie: 72100
-resultat: -1
+exit: 72100
+result: -1
 ---
-## Contexte
-Short sur [[BTC]] en [[Pullback]] baissier, mais contre la tendance H4.
+## Context
+Short on [[BTC]] on a bearish [[Pullback]], but against the H4 trend.
 
-## Erreur
-Entrée trop tard : [[FOMO]].`],
+## Mistake
+Entered too late: [[FOMO]].`],
 ['Trades/2026-11-07 EURUSD long.md',`---
 type: trade
-actif: EURUSD
+asset: EURUSD
 setup: Pullback
-sens: LONG
-entree: 1.0815
+side: LONG
+entry: 1.0815
 stop: 1.0795
-sortie: 1.0865
-resultat: 2.5
+exit: 1.0865
+result: 2.5
 ---
-[[Pullback]] sur la zone 1.0810 de [[EURUSD]], ouverture de Londres. Exécution propre.`],
+[[Pullback]] into the 1.0810 zone on [[EURUSD]] at the London open. Clean execution.`],
 ['Trades/2026-11-10 TSLA long.md',`---
 type: trade
-actif: TSLA
+asset: TSLA
 setup: Breakout
-sens: LONG
-entree: 255
+side: LONG
+entry: 255
 stop: 253.8
-sortie: 253.8
-resultat: -1
+exit: 253.8
+result: -1
 ---
-Faux [[Breakout]] sur [[TSLA]]. Le stop était dans le bruit : [[Stop trop serré]].`],
+False [[Breakout]] on [[TSLA]]. The stop was in the noise: [[Stop too tight]].`],
 ['Trades/2026-11-12 BTC long.md',`---
 type: trade
-actif: BTC
+asset: BTC
 setup: Breakout
-sens: LONG
-entree: 73400
+side: LONG
+entry: 73400
 stop: 72600
-sortie: 75800
-resultat: 3
+exit: 75800
+result: 3
 ---
-[[Breakout]] du plus haut hebdo sur [[BTC]]. Gros volume, tenu jusqu'à TP2.`],
+[[Breakout]] of the weekly high on [[BTC]]. Big volume, held to TP2.`],
 ['Trades/2026-11-14 EURUSD short.md',`---
 type: trade
-actif: EURUSD
+asset: EURUSD
 setup: Breakout
-sens: SHORT
-entree: 1.0840
+side: SHORT
+entry: 1.0840
 stop: 1.0860
-sortie: 1.0860
-resultat: -1
+exit: 1.0860
+result: -1
 ---
-Cassure de support sur [[EURUSD]] qui a échoué. [[FOMO]] après la news.`],
+Support break on [[EURUSD]] that failed. [[FOMO]] after the news.`],
 ['Trades/2026-11-18 TSLA short.md',`---
 type: trade
-actif: TSLA
+asset: TSLA
 setup: Pullback
-sens: SHORT
-entree: 262
+side: SHORT
+entry: 262
 stop: 265
-sortie: 257.5
-resultat: 1.5
+exit: 257.5
+result: 1.5
 ---
-[[Pullback]] sur résistance de [[TSLA]], rejet net. Bon trade.`],
+[[Pullback]] into [[TSLA]] resistance, sharp rejection. Good trade.`],
 ['Trades/2026-11-20 BTC long.md',`---
 type: trade
-actif: BTC
+asset: BTC
 setup: Pullback
-sens: LONG
-entree: 74100
+side: LONG
+entry: 74100
 stop: 73500
-sortie: 75300
-resultat: 2
+exit: 75300
+result: 2
 ---
-Retour sur l'ancienne résistance devenue support sur [[BTC]]. [[Pullback]] parfait.`]
+Retest of the old resistance turned support on [[BTC]]. Perfect [[Pullback]].`]
 ];

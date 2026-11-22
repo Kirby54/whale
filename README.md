@@ -1,101 +1,101 @@
 <p align="center">
-  <img src="assets/concepts/a-gemme-ocean-app.svg" width="120" alt="Logo Whale">
+  <img src="assets/concepts/a-ocean-gem-app.svg" width="120" alt="Whale logo">
 </p>
 
 <h1 align="center">Whale</h1>
 
 <p align="center">
-  Journal de trading <b>local</b> et <b>open source</b> qui sert aussi de second cerveau.<br>
-  Tes notes Markdown, tes trades et tes conversations IA, reliés entre eux et visibles en forme de baleine.
+  A <b>local-first</b>, <b>open-source</b> trading journal that is also a second brain.<br>
+  Your Markdown notes, trades and AI conversations, linked together and shown as a whale.
 </p>
 
 ---
 
-## Pourquoi Whale
+## Why Whale
 
-- **Tes données restent chez toi.** Chaque note est un vrai fichier `.md` dans un dossier de ton ordinateur (le « coffre »). Pas de compte, pas de cloud imposé, et tu peux ouvrir tes notes avec n'importe quel éditeur.
-- **Pensé pour le trading.** Propriétés de trade (actif, setup, sens, entrée, stop, sortie, résultat en R), tableau de bord, courbe des gains, import des trades de ton broker.
-- **Un second cerveau.** Liens `[[ ]]`, rétroliens, tags, import de tes notes et de tes conversations ChatGPT ou Claude, et une IA qui répond à partir de ton journal.
+- **Your data stays with you.** Every note is a real `.md` file in a folder on your computer (the "vault"). No account, no forced cloud, and you can open your notes in any editor.
+- **Built for trading.** Trade properties (asset, setup, side, entry, stop, exit, result in R), dashboard, equity curve, broker trade import.
+- **A second brain.** `[[Links]]`, backlinks, tags, import of your notes and of your ChatGPT or Claude conversations, and an AI that answers from your journal.
 
-## Fonctionnalités
+## Features
 
 | | |
 |---|---|
-| **Cerveau** | Chaque note est un point dans une baleine 3D, coloré selon son dossier. Légende cliquable, histogramme du temps avec une fenêtre glissable. |
-| **Ton IA** | Panneau à droite du cerveau. Tu poses une question, l'IA répond en citant tes notes et allume dans le cerveau le dossier, la période et les notes concernés. |
-| **Éditeur** | Aperçu en direct comme Obsidian (CodeMirror 6). Autocomplétion des `[[liens]]` et des `#tags`, cases à cocher, captures de charts collées avec Ctrl+V. |
-| **Classement par l'IA** | Un clic remplit le type, les tags, la date, le résumé et les propriétés d'un trade, et ajoute des liens vers tes autres notes. |
-| **Import** | Dossiers Obsidian ou Notion (Markdown), conversations ChatGPT et Claude (`conversations.json`), trades en CSV (MT4/MT5, TradingView, Binance, IBKR…) avec calcul des R. |
-| **Vues** | Tableau de bord (taux de réussite, R moyen, profit factor), timeline, tableau des trades triable, recherche Ctrl+K. |
+| **Brain** | Every note is a point in a 3D whale, colored by folder. Clickable legend and a time histogram with a draggable window. |
+| **Your AI** | Panel next to the brain. Ask a question: the AI answers with your notes as sources and lights up the matching folder, period and notes in the brain. |
+| **Editor** | Live preview like Obsidian (CodeMirror 6). Autocomplete for `[[links]]` and `#tags`, checkboxes, chart screenshots pasted with Ctrl+V. |
+| **AI classification** | One click fills in a note's type, tags, date, summary and trade properties, and adds links to your other notes. |
+| **Import** | Obsidian or Notion folders (Markdown), ChatGPT and Claude conversations (`conversations.json`), trades as CSV (MT4/MT5, TradingView, Binance, IBKR…) with R computed for you. |
+| **Views** | Dashboard (win rate, average R, profit factor), timeline, sortable trades table, Ctrl+K search. |
 
-## L'IA, à ton choix
+## AI, your choice
 
-- **Claude**, avec ta propre clé API Anthropic (modèle par défaut : `claude-opus-5-5`). La clé est rangée dans le coffre-fort du système (Gestionnaire d'identifiants Windows), jamais dans tes notes.
-- **Ollama**, 100 % local et gratuit : rien ne sort de ton ordinateur.
+- **Claude**, with your own Anthropic API key (default model: `claude-opus-5-5`). The key is stored in the system vault (Windows Credential Manager), never in your notes.
+- **Ollama**, 100% local and free: nothing leaves your computer.
 
-Pour répondre, Whale envoie au fournisseur choisi tes statistiques et les notes utiles à la question. Avec Ollama, tout reste sur ta machine.
+To answer, Whale sends the chosen provider your statistics and the notes relevant to the question. With Ollama, everything stays on your machine.
 
-## Format d'une note de trade
+## Trade note format
 
 ```markdown
 ---
 type: trade
 date: 2026-11-03
-actif: TSLA
+asset: TSLA
 setup: Breakout
-sens: LONG
-entree: 242.5
+side: LONG
+entry: 242.5
 stop: 238
-sortie: 251
-resultat: 1.9
+exit: 251
+result: 1.9
 ---
-## Contexte
-Cassure propre sur [[TSLA]], setup [[Breakout]].
+## Context
+Clean break on [[TSLA]], [[Breakout]] setup.
 ```
 
-`type` peut valoir `trade`, `setup`, `actif`, `emotion`, `conversation` ou `note`. `resultat` est exprimé en R (multiple du risque).
+`type` can be `trade`, `setup`, `asset`, `emotion`, `conversation` or `note`. `result` is in R (multiple of the risk).
 
-## Raccourcis
+## Shortcuts
 
-| Raccourci | Action |
+| Shortcut | Action |
 |---|---|
-| Ctrl+K | Chercher une note ou demander à l'IA |
-| Ctrl+N | Nouveau trade |
-| Ctrl+E | Basculer entre l'éditeur et la vue lecture |
-| Ctrl+G | Cerveau |
-| Ctrl+B / Ctrl+I | Gras / italique |
-| Ctrl+L | Case à cocher |
-| Ctrl+F | Rechercher dans la note |
+| Ctrl+K | Search a note or ask the AI |
+| Ctrl+N | New trade |
+| Ctrl+E | Switch between the editor and the reading view |
+| Ctrl+G | Brain |
+| Ctrl+B / Ctrl+I | Bold / italic |
+| Ctrl+L | Checkbox |
+| Ctrl+F | Find in the note |
 
-## Installer depuis les sources
+## Build from source
 
-Prérequis : [Node.js](https://nodejs.org), [Rust](https://rustup.rs) et, sous Windows, les outils de build C++ de Visual Studio.
+Requirements: [Node.js](https://nodejs.org), [Rust](https://rustup.rs) and, on Windows, the Visual Studio C++ build tools.
 
 ```bash
 git clone https://github.com/Kirby54/whale.git
 cd whale
 npm install
-npm run dev      # lance l'app en mode développement
-npm run build    # crée l'installeur Windows
-npm test         # lance les tests
+npm run dev      # run the app in development mode
+npm run build    # build the Windows installer
+npm test         # run the tests
 ```
 
-## Structure du code
+## Code layout
 
-| Dossier | Contenu |
+| Folder | Contents |
 |---|---|
-| `src/` | L'interface, sans framework : `app.js` (cœur), `core.js` (logique pure, testée), `graph.js` (cerveau 3D), `ai.js` et `aipanel.js` (IA), `import.js`, `views.js`, `ui.js` |
-| `editor/` | Source de l'éditeur (CodeMirror 6), compilée par esbuild vers `src/vendor/editor.bundle.js` |
-| `src-tauri/` | La partie Rust : fichiers du coffre, réglages, import et appels à l'IA |
-| `tests/` | Tests de la logique (`npm test`) ; tests Rust avec `cargo test` dans `src-tauri/` |
-| `assets/` | Logos (3 pistes) et icônes générées |
+| `src/` | The interface, no framework: `app.js` (core), `core.js` (pure, tested logic), `graph.js` (3D brain), `ai.js` and `aipanel.js` (AI), `import.js`, `views.js`, `ui.js` |
+| `editor/` | Editor source (CodeMirror 6), bundled by esbuild into `src/vendor/editor.bundle.js` |
+| `src-tauri/` | The Rust side: vault files, settings, import and AI calls |
+| `tests/` | Logic tests (`npm test`); Rust tests with `cargo test` in `src-tauri/` |
+| `assets/` | Logo options and generated icons |
 
-Ouvrir `src/index.html` dans un navigateur fonctionne aussi : les notes sont alors gardées dans le navigateur, ce qui est pratique pour travailler sur l'interface.
+Opening `src/index.html` in a browser also works: notes are then kept in the browser, which is handy for working on the interface.
 
-## Contribuer
+## Contributing
 
-Les issues et les pull requests sont les bienvenues. Lance `npm test` avant de proposer une modification.
+Issues and pull requests are welcome. Run `npm test` before submitting a change.
 
-## Licence
+## License
 
 [MIT](LICENSE)

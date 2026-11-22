@@ -1,5 +1,5 @@
-/* Whale — logique pure, sans DOM.
-   Utilisée par l'app (window.Core) et par les tests Node (require('./core.js')). */
+/* Whale — pure logic, no DOM.
+   Used by the app (window.Core) and by the Node tests (require('./core.js')). */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.Core = factory();
@@ -7,15 +7,25 @@
   const IMG_EXT = /\.(png|jpe?g|gif|webp|bmp)$/i;
   const FM = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
-  /* ---------- Chemins et noms ---------- */
+  /* ---------- Property names ----------
+     Notes use English keys. Notes written by earlier versions used French keys:
+     they are still read (and rewritten in English the next time a property is set). */
+  const LEGACY_KEYS = {
+    actif: 'asset', sens: 'side', entree: 'entry', sortie: 'exit', resultat: 'result',
+    marche: 'market', quantite: 'quantity', resume: 'summary',
+  };
+  const LEGACY_TYPES = { actif: 'asset' };
+  const canonicalKey = (k) => LEGACY_KEYS[k] || k;
+
+  /* ---------- Paths and names ---------- */
   const stem = (p) => String(p).split('/').pop().replace(/\.md$/i, '');
   const dirOf = (p) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
-  // Nom de fichier valide sous Windows / macOS / Linux
-  const safeName = (n) => String(n).replace(/[\\/:*?"<>|]/g, '-').replace(/\s+$/, '').replace(/^\.+/, '') || 'Sans titre';
+  // File name that is valid on Windows / macOS / Linux
+  const safeName = (n) => String(n).replace(/[\\/:*?"<>|]/g, '-').replace(/\s+$/, '').replace(/^\.+/, '') || 'Untitled';
   const reEsc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   /* ---------- Notes ---------- */
-  // Analyse une note : propriétés (frontmatter), corps, cibles de liens [[...]] (non résolues)
+  // Parses a note: properties (frontmatter), body, and [[link]] targets (unresolved)
   function parseRaw(raw) {
     raw = String(raw || '');
     const m = raw.match(FM);
@@ -25,9 +35,10 @@
       body = raw.slice(m[0].length);
       m[1].split(/\r?\n/).forEach((l) => {
         const i = l.indexOf(':');
-        if (i > 0) props[l.slice(0, i).trim()] = l.slice(i + 1).trim();
+        if (i > 0) props[canonicalKey(l.slice(0, i).trim())] = l.slice(i + 1).trim();
       });
     }
+    if (props.type) props.type = LEGACY_TYPES[props.type] || props.type;
     const targets = [];
     body.replace(/`[^`]*`/g, '').replace(/(!?)\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g, (_, bang, t) => {
       if (bang && IMG_EXT.test(t)) return;
@@ -37,13 +48,14 @@
     return { props, body, targets, type: props.type || 'note' };
   }
 
-  // Résultat d'un trade en R (accepte "1,5" et "1.5")
+  // Trade result in R (accepts "1,5" and "1.5")
   function rOf(props) {
-    const v = parseFloat(String((props && props.resultat) || '').replace(',', '.'));
+    const v = parseFloat(String((props && props.result) || '').replace(',', '.'));
     return isNaN(v) ? null : v;
   }
 
-  // Modifie des propriétés (null = supprimer, "" = ne pas créer) en gardant l'ordre existant
+  // Sets properties (null = remove, "" = do not create) while keeping the existing order.
+  // A legacy French key is replaced by its English name when it is updated.
   function setPropsText(raw, updates) {
     raw = String(raw || '');
     const m = raw.match(FM);
@@ -53,8 +65,9 @@
     const out = [];
     lines.forEach((l) => {
       const i = l.indexOf(':');
-      const k = i > 0 ? l.slice(0, i).trim() : null;
+      const k = i > 0 ? canonicalKey(l.slice(0, i).trim()) : null;
       if (k && Object.prototype.hasOwnProperty.call(updates, k)) {
+        if (done.has(k)) return; // duplicate (legacy + English): keep one
         done.add(k);
         if (updates[k] != null) out.push(`${k}: ${updates[k]}`);
       } else out.push(l);
@@ -65,14 +78,14 @@
     return `---\n${out.join('\n')}\n---\n` + body.replace(/^\r?\n/, '');
   }
 
-  // Après un renommage : met à jour [[ancien]] / [[ancien|alias]] et les propriétés actif/setup
+  // After a rename: updates [[old]] / [[old|alias]] and the asset/setup properties
   function renameInContent(content, oldName, newName) {
     const reLink = new RegExp('\\[\\[' + reEsc(oldName) + '(\\]\\]|\\|)', 'gi');
-    const reProp = new RegExp('^((?:actif|setup): *)' + reEsc(oldName) + '[ \\t]*$', 'gmi');
+    const reProp = new RegExp('^((?:asset|actif|setup): *)' + reEsc(oldName) + '[ \\t]*$', 'gmi');
     return String(content).replace(reLink, '[[' + newName + '$1').replace(reProp, '$1' + newName);
   }
 
-  // Résolveur de liens insensible à la casse
+  // Case-insensitive link resolver
   function makeResolver(names) {
     const exact = new Set(names);
     const lower = new Map();
@@ -84,8 +97,8 @@
     };
   }
 
-  /* ---------- Statistiques ---------- */
-  // trades : [{ r: number, setup, actif }]
+  /* ---------- Statistics ---------- */
+  // trades: [{ r: number, setup, asset }]
   function computeStats(trades) {
     const rs = trades.map((t) => t.r).filter((r) => typeof r === 'number' && !isNaN(r));
     const round = (x) => Math.round(x * 100) / 100;
@@ -116,13 +129,13 @@
       profitFactor: losses ? round(gains / losses) : null,
       equity: [0].concat(rs.map((r) => round((eq += r)))),
       bySetup: group('setup'),
-      byActif: group('actif'),
+      byAsset: group('asset'),
     };
   }
 
-  /* ---------- Import CSV ---------- */
+  /* ---------- CSV import ---------- */
   function parseCSV(text) {
-    text = String(text || '').replace(/^﻿/, '');
+    text = String(text || '').replace(/^\uFEFF/, '');
     const first = text.split(/\r?\n/, 1)[0];
     const delim = [';', '\t', ','].sort((a, b) => first.split(b).length - first.split(a).length)[0];
     const rows = [];
@@ -145,6 +158,7 @@
     return rows;
   }
   const normHeader = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  // Column names seen in broker exports (English first, French kept for French brokers)
   const CSV_FIELDS = {
     date: ['date', 'open time', 'opentime', 'time', 'datetime', 'entry time', 'date ouverture', 'heure', 'close time', 'closing time', 'filled time', 'date time'],
     symbol: ['symbol', 'symbole', 'instrument', 'ticker', 'actif', 'asset', 'market', 'pair', 'paire', 'contract', 'item'],
@@ -155,7 +169,7 @@
     qty: ['qty', 'quantity', 'quantite', 'size', 'volume', 'lots', 'taille', 'amount', 'shares'],
     pnl: ['pnl', 'p l', 'profit', 'net profit', 'realized pnl', 'realised pnl', 'net pnl', 'profit loss', 'gain', 'resultat'],
   };
-  // Devine quelle colonne correspond à quel champ : { date: 0, symbol: 1, ... }
+  // Guesses which column holds which field: { date: 0, symbol: 1, ... }
   function detectColumns(headers) {
     const H = headers.map(normHeader), used = new Set(), map = {};
     Object.keys(CSV_FIELDS).forEach((f) => {
@@ -176,7 +190,7 @@
     return isNaN(v) ? null : v;
   }
   const isoDay = (t) => { const d = new Date(t); return isNaN(d) ? '' : d.toISOString().slice(0, 10); };
-  // Normalise une date vers AAAA-MM-JJ (2026.11.21, 21/11/2026, ISO…)
+  // Normalizes a date to YYYY-MM-DD (2026.11.21, 21/11/2026, ISO…)
   function toDay(s) {
     s = String(s || '').trim();
     if (!s) return '';
@@ -193,13 +207,13 @@
     if (/^(sell|short|vente|s|vendre)\b/.test(s)) return 'SHORT';
     return '';
   }
-  // R = (sortie - entrée) / (entrée - stop) : marche pour un long comme pour un short
+  // R = (exit - entry) / (entry - stop): works for longs and shorts
   function computeR(entry, exit, stop) {
     if (entry == null || exit == null || stop == null || entry === stop) return null;
     return Math.round(((exit - entry) / (entry - stop)) * 100) / 100;
   }
 
-  /* ---------- Import de conversations ---------- */
+  /* ---------- Conversation import ---------- */
   function fromChatGPT(c) {
     const map = c.mapping || {};
     const chain = [];
@@ -218,25 +232,25 @@
       const role = m.author.role;
       if (role !== 'user' && role !== 'assistant') return;
       const text = ((m.content || {}).parts || []).filter((p) => typeof p === 'string').join('\n').trim();
-      if (text) msgs.push([role === 'user' ? 'Toi' : 'ChatGPT', text]);
+      if (text) msgs.push([role === 'user' ? 'You' : 'ChatGPT', text]);
     });
     return { title: c.title || 'Conversation', date: c.create_time ? isoDay(c.create_time * 1000) : '', source: 'ChatGPT', msgs };
   }
   function fromClaude(c) {
     const msgs = (c.chat_messages || []).map((m) => {
       const t = m.text || (m.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-      return [m.sender === 'human' ? 'Toi' : 'Claude', String(t || '').trim()];
+      return [m.sender === 'human' ? 'You' : 'Claude', String(t || '').trim()];
     }).filter((x) => x[1]);
     return { title: c.name || 'Conversation', date: c.created_at ? isoDay(c.created_at) : '', source: 'Claude', msgs };
   }
-  // Reconnaît le format (ChatGPT ou Claude) de chaque conversation d'un export
+  // Detects the format (ChatGPT or Claude) of each conversation in an export
   function parseConversations(data) {
     if (!Array.isArray(data)) data = (data && data.conversations) || [data];
     return data.map((c) => (c && c.mapping ? fromChatGPT(c) : c && c.chat_messages ? fromClaude(c) : null)).filter((c) => c && c.msgs.length);
   }
 
   return {
-    IMG_EXT, stem, dirOf, safeName, reEsc,
+    IMG_EXT, LEGACY_KEYS, canonicalKey, stem, dirOf, safeName, reEsc,
     parseRaw, rOf, setPropsText, renameInContent, makeResolver,
     computeStats,
     parseCSV, normHeader, CSV_FIELDS, detectColumns, parseNumber, toDay, normSide, computeR,
