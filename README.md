@@ -18,6 +18,12 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Kirby54/whale/releases/latest"><b>⬇ Download for Windows</b></a> ·
+  <a href="#features">Features</a> ·
+  <a href="#build-from-source">Build from source</a>
+</p>
+
+<p align="center">
   <img src="docs/screenshots/brain-full.png" alt="The Whale brain: every note is a point in a 3D whale, colored by folder" width="100%">
 </p>
 
@@ -33,7 +39,7 @@
 
 ### 🐋 The brain, driven by your AI
 
-Every note is a point in a 3D whale, colored by folder. Ask **Your AI** a question: it answers with your notes as sources **and lights up** the matching folder, period and notes in the brain. Hover the folder legend to highlight a folder, and drag the time histogram to focus on a period.
+Every note is a point in a 3D humpback whale, and every `[[link]]` is a thin thread. Notes are **placed by meaning**: notes about the same things (shared key words, links) sit next to each other, computed locally with no AI. Ask **Your AI** a question: it answers with your notes as sources **and lights up** the matching folder, period and notes in the brain. Hover the folder legend to highlight a folder, and drag the time histogram to focus on a period.
 
 <p align="center"><img src="docs/screenshots/brain.png" alt="Your AI answers a question and highlights the matching trades in the brain" width="100%"></p>
 
@@ -79,6 +85,18 @@ Win rate, total and average R, profit factor, equity curve, and results by setup
 | Your key | Stored in Windows Credential Manager, never in your notes | No key needed |
 
 To answer, Whale sends the chosen provider your statistics and the notes relevant to the question. With Ollama, nothing leaves your machine. The AI answers in the language you ask in.
+
+## Download
+
+Get **`Whale_x.y.z_x64-setup.exe`** from the [latest release](https://github.com/Kirby54/whale/releases/latest) and run it. No admin rights needed; your notes go to `Documents\Whale` by default.
+
+> Windows may show "Windows protected your PC" because the installer is not code-signed yet: click **More info → Run anyway**.
+
+## Your notes are safe
+
+- Every save is **atomic**: the note is written to a temporary file that then replaces it in one step, so a crash can never leave a half-written note.
+- If you edit a note in another app while Whale is open, Whale **detects the conflict** and asks what to keep: your version, the other one, or both.
+- If a save fails (locked file, full disk), Whale keeps your text and retries.
 
 ## Trade note format
 
@@ -133,16 +151,18 @@ npm test         # run the tests
 | `editor/` | Editor source (CodeMirror 6), bundled by esbuild into `src/vendor/editor.bundle.js` |
 | `src-tauri/` | The Rust side: vault files, settings, import and AI calls |
 | `tests/` | Logic tests (`npm test`); Rust tests with `cargo test` in `src-tauri/` |
-| `assets/` | Logo options and generated icons |
+| `assets/` | Logo options (the official icon is `a-ocean-gem`) and generated icons |
 | `docs/screenshots/` | README screenshots, regenerated with `tools/screenshots.ps1` |
+| `.github/workflows/release.yml` | Builds the installer and publishes a release when a `v*` tag is pushed |
 
 Opening `src/index.html` in a browser also works: notes are then kept in the browser, which is handy for working on the interface.
 
 ## Roadmap
 
-- [ ] Windows installer in GitHub Releases
-- [ ] Safe writes (no corrupted note if the app crashes) and conflict detection when a note is edited elsewhere
-- [ ] Notes placed by meaning in the brain (embeddings)
+- [x] Windows installer in GitHub Releases
+- [x] Safe writes and conflict detection when a note is edited elsewhere
+- [x] Notes placed by meaning in the brain (local TF-IDF similarity + links)
+- [ ] Optional AI embeddings for even better placement
 - [ ] Editable properties form, code highlighting and tables in the editor
 - [ ] macOS and Linux builds
 

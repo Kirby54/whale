@@ -1,12 +1,13 @@
 {
   "name": "whale",
-  "version": "1.0.0",
+  "version": "0.4.0",
   "main": "index.js",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
     "test": "node --test --test-reporter=spec tests/core.test.js",
-    "build:editor": "esbuild editor/whale-editor.js --bundle --minify --format=iife --target=es2020 --outfile=src/vendor/editor.bundle.js"
+    "build:editor": "esbuild editor/whale-editor.js --bundle --minify --format=iife --target=es2020 --outfile=src/vendor/editor.bundle.js",
+    "tauri": "tauri"
   },
   "keywords": [],
   "author": "",
