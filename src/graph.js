@@ -3,7 +3,7 @@
    Légende des dossiers (survol / clic pour mettre en avant) et histogramme du temps (fenêtre glissable). */
 window.Graph = (() => {
   const PALETTE = ['#8b7cf6', '#2dd4bf', '#4f8cf7', '#facc15', '#fb923c', '#4ade80', '#f472b6', '#f87171', '#22d3ee', '#a3e635', '#e879f9', '#94a3b8'];
-  const N_CLOUD = 7000;
+  let N_CLOUD = 7000; // grandit avec le coffre (1,6 point par note au minimum)
   let R, S, C, G, pts, linkLines, ray, inited = false, running = false;
   let zoom = 1, ry = 0.25, rx = 0.1, drag = false, moved = 0, lx = 0, ly = 0, auto = true, tt = 0;
   let cloud = [], folders = [], folderOfPt = [], noteAt = {}, nameOfPt = {}, dateOfPt = {};
@@ -31,6 +31,16 @@ window.Graph = (() => {
     return { P, rnd };
   }
 
+  // (Re)crée le nuage et ses attributs pour N_CLOUD points
+  function makeGeometry() {
+    cloud = whaleCloud().P;
+    const geo = new THREE.BufferGeometry().setFromPoints(cloud);
+    geo.setAttribute('acolor', new THREE.BufferAttribute(new Float32Array(N_CLOUD * 3), 3));
+    geo.setAttribute('asize', new THREE.BufferAttribute(new Float32Array(N_CLOUD), 1));
+    geo.setAttribute('aalpha', new THREE.BufferAttribute(new Float32Array(N_CLOUD), 1));
+    return geo;
+  }
+
   /* ---------- Initialisation WebGL ---------- */
   function init() {
     R = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
@@ -38,11 +48,6 @@ window.Graph = (() => {
     S = new THREE.Scene(); C = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
     ray = new THREE.Raycaster();
     G = new THREE.Group(); S.add(G);
-    const { P } = whaleCloud(); cloud = P;
-    const geo = new THREE.BufferGeometry().setFromPoints(P);
-    geo.setAttribute('acolor', new THREE.BufferAttribute(new Float32Array(N_CLOUD * 3), 3));
-    geo.setAttribute('asize', new THREE.BufferAttribute(new Float32Array(N_CLOUD), 1));
-    geo.setAttribute('aalpha', new THREE.BufferAttribute(new Float32Array(N_CLOUD), 1));
     const mat = new THREE.ShaderMaterial({
       uniforms: { uPR: { value: R.getPixelRatio() }, uDist: { value: 5 } },
       vertexShader: `attribute vec3 acolor; attribute float asize; attribute float aalpha;
@@ -54,7 +59,7 @@ window.Graph = (() => {
           gl_FragColor=vec4(vC, vA*smoothstep(0.5,0.2,d)); }`,
       transparent: true, depthWrite: false,
     });
-    pts = new THREE.Points(geo, mat); G.add(pts);
+    pts = new THREE.Points(makeGeometry(), mat); G.add(pts);
     linkLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xa68bff, transparent: true, opacity: 0.55 }));
     G.add(linkLines);
 
@@ -89,6 +94,8 @@ window.Graph = (() => {
   const folderName = (path) => (path.includes('/') ? path.split('/')[0] : 'Notes');
   function build() {
     const names = Object.keys(notes);
+    const needed = Math.max(7000, Math.ceil(names.length * 1.6));
+    if (needed !== N_CLOUD) { N_CLOUD = needed; pts.geometry.dispose(); pts.geometry = makeGeometry(); }
     const counts = {};
     names.forEach((n) => { const f = folderName(notes[n].path); counts[f] = (counts[f] || 0) + 1; });
     folders = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, 'fr'))
