@@ -3,7 +3,7 @@
 /* ---------- État ---------- */
 // notes : nom de la note -> { path: "Trades/x.md", content: "..." }
 let notes = {};
-let cur = null, editing = false, view = 'note', vault = null;
+let cur = null, editing = true, view = 'note', vault = null; // editing = éditeur avec aperçu en direct, sinon vue lecture
 const closed = new Set();
 const pending = {}; // écritures en attente (anti-rebond)
 
@@ -191,18 +191,20 @@ function renderNote() {
   if (!cur) {
     $('title').value = ''; $('crumb').innerHTML = '';
     $('reader').innerHTML = '<p class="empty">Aucune note. Crée un trade avec le bouton +.</p>';
-    $('reader').style.display = 'block'; $('editor').style.display = 'none';
+    $('reader').style.display = 'block'; $('editorhost').style.display = 'none';
     renderLinks(null); return;
   }
   const p = parse(cur);
   if (document.activeElement !== $('title')) $('title').value = cur;
   const d = dirOf(notes[cur].path);
   $('crumb').innerHTML = (d ? esc(d.replace(/\//g, ' / ')) + ' / ' : '') + `<b>${esc(cur)}</b>`;
-  $('editor').style.display = editing ? 'block' : 'none';
+  $('editorhost').style.display = editing ? 'block' : 'none';
   $('reader').style.display = editing ? 'none' : 'block';
   $('btnMode').textContent = editing ? 'Lecture' : 'Édition';
-  if (editing) { if ($('editor').value !== notes[cur].content) $('editor').value = notes[cur].content; autosize(); }
-  else { $('reader').innerHTML = propsHtml(p) + md(p.body); loadImages($('reader')); }
+  if (editing) {
+    const ed = getEditor();
+    if (edNote !== cur || ed.getDoc() !== notes[cur].content) { ed.setDoc(notes[cur].content); edNote = cur; }
+  } else { $('reader').innerHTML = propsHtml(p) + md(p.body); loadImages($('reader')); }
   renderLinks(p);
 }
 function renderLinks(p) {
@@ -215,7 +217,55 @@ function renderLinks(p) {
   $('backlinks').innerHTML = back.map((n) => row(n, `<small>${snip(n)}</small>`)).join('') || '<div class="empty">Aucun rétrolien</div>';
   $('outlinks').innerHTML = p.links.map((n) => row(n)).join('') || '<div class="empty">Aucun lien</div>';
 }
-function autosize() { const e = $('editor'); e.style.height = 'auto'; e.style.height = Math.max(e.scrollHeight, window.innerHeight * 0.6) + 'px'; }
+
+/* ---------- Éditeur avec aperçu en direct (CodeMirror 6, voir editor/whale-editor.js) ---------- */
+let editorInst = null, edNote = null;
+function allTags() {
+  const tags = new Set();
+  for (const n of Object.keys(notes)) {
+    const p = parse(n);
+    (p.props.tags || '').split(',').forEach((t) => { t = t.trim().replace(/^#/, ''); if (t) tags.add(t); });
+    for (const m of p.body.matchAll(/(?:^|[\s(])#([\p{L}\d_][\p{L}\d_\-/]*)/gu)) tags.add(m[1]);
+  }
+  return [...tags].sort((a, b) => a.localeCompare(b, 'fr'));
+}
+async function imageUrl(src) {
+  const path = src.includes('/') ? src : 'attachments/' + src;
+  if (!blobCache[path]) blobCache[path] = URL.createObjectURL(new Blob([await Store.readBytes(path)]));
+  return blobCache[path];
+}
+async function saveImage(file) {
+  const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+  const name = `chart-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.${ext}`;
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    await Store.saveAttachment(name, bytes);
+    blobCache['attachments/' + name] = URL.createObjectURL(new Blob([bytes], { type: file.type }));
+    status('Image enregistrée · attachments/' + name);
+    return `![[${name}]]
+`;
+  } catch (err) { alert("Impossible d'enregistrer l'image : " + err); return null; }
+}
+let linkTimer = null;
+function getEditor() {
+  if (editorInst) return editorInst;
+  editorInst = WhaleEditor.create($('editorhost'), {
+    placeholder: 'Écris ici… [[ pour lier une note, # pour un tag, Ctrl+V pour coller une capture de chart',
+    onChange(text) {
+      if (!cur || edNote !== cur) return;
+      notes[cur].content = text; queueWrite(cur);
+      clearTimeout(linkTimer); linkTimer = setTimeout(() => { renderTree(); renderLinks(parse(cur)); }, 300);
+    },
+    getNoteNames: () => Object.keys(notes).filter((n) => n !== cur),
+    describeNote: (n) => dirOf(notes[n].path),
+    getTags: allTags,
+    resolveNote: (t) => resolve(t),
+    onOpenLink: (t) => open(resolve(t) || t),
+    resolveImage: imageUrl,
+    onPasteImage: saveImage,
+  });
+  return editorInst;
+}
 
 async function open(n) {
   await flushAll();
@@ -236,6 +286,7 @@ function setView(v) {
   $('side').classList.toggle('hide', v !== 'note');
   $('tabbar').style.display = v === 'graph' ? 'none' : '';
   $('more').classList.add('hide');
+  if (window.AIPanel) AIPanel.onView(v);
   if (v === 'graph') Graph.show(); else Graph.hide();
   if (v === 'dash') { $('crumb').innerHTML = '<b>Tableau de bord</b>'; renderDash(); }
   if (v === 'timeline') { $('crumb').innerHTML = '<b>Timeline</b> · toutes tes notes dans le temps'; Views.timeline(); }
@@ -254,7 +305,7 @@ async function newTrade() {
   const content = `---\ntype: trade\ndate: ${d}\nactif: \nsetup: \nsens: LONG\nentree: \nstop: \nsortie: \nresultat: \n---\n## Contexte\n\n\n## Erreurs / émotions\n\n`;
   notes[n] = { path: `${TYPE_DIR.trade}/${safeName(n)}.md`, content };
   await Store.write(notes[n].path, content);
-  cur = n; editing = true; setView('note'); renderTree(); $('editor').focus();
+  cur = n; editing = true; setView('note'); renderTree(); getEditor().focus();
 }
 async function deleteCur() {
   if (!cur || !confirm(`Mettre « ${cur} » à la corbeille ?\nLe fichier sera déplacé dans le dossier .trash du coffre.`)) return;
@@ -277,21 +328,6 @@ async function renameCur(nn) {
     if (nc !== c) { notes[k].content = nc; await Store.write(notes[k].path, nc); }
   }
   cur = nn; renderTree(); renderNote(); status('Renommée en ' + to);
-}
-async function pasteImage(e) {
-  const item = [...(e.clipboardData || {}).items || []].find((i) => i.type.startsWith('image/'));
-  if (!item) return;
-  e.preventDefault();
-  const file = item.getAsFile(); const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
-  const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
-  const name = `chart-${ts}.${ext}`;
-  try {
-    await Store.saveAttachment(name, new Uint8Array(await file.arrayBuffer()));
-    const ed = $('editor'), s = ed.selectionStart, ins = `![[${name}]]\n`;
-    ed.value = ed.value.slice(0, s) + ins + ed.value.slice(ed.selectionEnd);
-    ed.selectionStart = ed.selectionEnd = s + ins.length;
-    notes[cur].content = ed.value; queueWrite(cur); status('Image enregistrée · attachments/' + name);
-  } catch (err) { alert("Impossible d'enregistrer l'image : " + err); }
 }
 async function changeVault() {
   const path = await Store.pickFolder();
@@ -363,19 +399,13 @@ $('btnClassify').onclick = () => AI.classifyCurrent();
 $('btnNew').onclick = newTrade;
 $('btnVault').onclick = changeVault;
 $('btnDel').onclick = deleteCur;
-$('btnMode').onclick = () => { editing = !editing; renderNote(); if (editing) $('editor').focus(); };
-$('editor').addEventListener('input', () => {
-  if (!cur) return;
-  notes[cur].content = $('editor').value; queueWrite(cur); autosize();
-  clearTimeout(window._rt); window._rt = setTimeout(() => { renderTree(); renderLinks(parse(cur)); }, 300);
-});
-$('editor').addEventListener('paste', pasteImage);
+$('btnMode').onclick = () => { editing = !editing; renderNote(); if (editing) getEditor().focus(); };
 $('title').addEventListener('change', () => renameCur($('title').value));
 $('title').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('title').blur(); } });
 document.addEventListener('keydown', (e) => {
   if (!(e.ctrlKey || e.metaKey)) return;
   const k = e.key.toLowerCase();
-  if (k === 'e') { e.preventDefault(); if (view !== 'note') setView('note'); editing = !editing; renderNote(); if (editing) $('editor').focus(); }
+  if (k === 'e') { e.preventDefault(); if (view !== 'note') setView('note'); editing = !editing; renderNote(); if (editing) getEditor().focus(); }
   if (k === 'g') { e.preventDefault(); setView(view === 'graph' ? 'note' : 'graph'); }
   if (k === 'n') { e.preventDefault(); newTrade(); }
   if (k === 's') { e.preventDefault(); flushAll(); }
@@ -385,7 +415,7 @@ window.addEventListener('focus', async () => {
   if (!vault || Object.keys(pending).length) return;
   const before = JSON.stringify(notes);
   await loadAll();
-  if (JSON.stringify(notes) !== before) { renderTree(); if (view === 'note' && !editing) renderNote(); if (view === 'dash') renderDash(); }
+  if (JSON.stringify(notes) !== before) { renderTree(); if (view === 'note') renderNote(); if (view === 'dash') renderDash(); }
 });
 window.addEventListener('beforeunload', flushAll);
 

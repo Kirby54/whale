@@ -241,3 +241,47 @@ body.desktop #app{height:calc(100vh - 32px)}
 .tb-btns button:hover{background:#1a1a1a;color:#fff}
 .tb-btns #winClose:hover{background:#c42b1c;color:#fff}
 .tb-btns svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:1}
+
+/* Éditeur avec aperçu en direct */
+#editorhost{min-height:60vh}
+#editorhost .cm-editor{background:transparent}
+
+/* Logo et bande blanche sous le nom */
+#brand{display:flex;align-items:center;gap:6px}
+#brandLogo{width:22px;height:22px;object-fit:contain}
+#brandbar{background:#fff !important;height:2px;width:34px}
+.tb-logo{width:16px;height:16px;object-fit:contain}
+.logos{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.logos button{border:1px solid var(--line2);border-radius:12px;padding:14px 8px 10px;background:var(--bg3);display:flex;flex-direction:column;align-items:center;gap:8px;font-size:13px;color:var(--tx2)}
+.logos button img{width:92px;height:92px}
+.logos button:hover{border-color:#555;color:#fff}
+.logos button.on{border-color:var(--acc);color:#fff;background:#1d1a2b}
+
+/* ---------- Panneau « Ton IA » ---------- */
+#aipanel{width:clamp(290px,28vw,400px);flex:none;background:#000;border-left:1px solid #1f1f1f;display:flex;flex-direction:column;min-height:0;padding:14px}
+#aipanel.hide{display:none}
+.aph{display:flex;justify-content:space-between;align-items:center;border:1px solid #2a2a2a;border-bottom:0;padding:14px 16px;font-weight:600;color:#fff}
+.aph button{color:#777;font-size:20px;line-height:1}
+.aph button:hover{color:#fff}
+#apchat{flex:1;overflow:auto;border:1px solid #2a2a2a;border-top:1px solid #2a2a2a;padding:16px;min-height:0}
+.apmsg{margin:0 0 16px;line-height:1.6;font-size:14px;color:#eee}
+.apmsg.me{background:#fff;color:#111;border-radius:12px;padding:9px 14px;margin-left:18%;width:fit-content;max-width:82%;margin-left:auto}
+.apmsg.bot p{margin:4px 0}
+.apmsg.err{color:#ff9b94}
+.apchip{display:inline-flex;align-items:center;gap:8px;border:1px solid #3a3a3a;padding:5px 10px;font-size:12px;color:#ddd;margin:0 0 10px}
+.apchip i{width:14px;height:2px;background:linear-gradient(90deg,#f472b6,#facc15,#4f8cf7,#2dd4bf)}
+.apchip button{color:#777;font-size:11px;margin-left:4px;text-decoration:underline}
+.apchip.off{opacity:.4}
+.apwelcome{color:#888;font-size:13px;line-height:1.6}
+.apsug{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.apsug button{text-align:left;border:1px solid #2a2a2a;border-radius:8px;padding:7px 10px;color:#bbb}
+.apsug button:hover{border-color:#555;color:#fff}
+#apform{display:flex;align-items:flex-end;gap:8px;border:1px solid #3a3a3a;border-radius:12px;padding:8px 8px 8px 14px;margin-top:12px;background:#000}
+#apinput{flex:1;background:none;border:0;color:#fff;font:inherit;resize:none;outline:none;max-height:140px;padding:4px 0}
+#apsend{width:30px;height:30px;border-radius:50%;border:1px solid #555;display:grid;place-items:center;color:#ddd;flex:none}
+#apsend:hover{border-color:#fff;color:#fff}
+#apsend svg{width:15px;height:15px}
+#apOpen{position:absolute;right:14px;top:12px;border:1px solid #333;border-radius:16px;padding:5px 12px;font-size:12px;color:#ccc;background:#000}
+#apOpen:hover{border-color:#777;color:#fff}
+#apOpen.hide{display:none}
+@media (max-width:900px){#aipanel{width:300px}}

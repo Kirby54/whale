@@ -76,3 +76,33 @@
   $('winMax').onclick = () => win.toggleMaximize();
   $('winClose').onclick = async () => { await flushAll(); win.close(); };
 })();
+
+/* ---------- Choix du logo (3 pistes) ---------- */
+(() => {
+  const LOGOS = {
+    a: { name: 'Gemme océan', mark: 'img/logo-a.svg', app: 'img/logo-a-app.svg', icons: 'a-gemme-ocean' },
+    b: { name: 'Gemme violette', mark: 'img/logo-b.svg', app: 'img/logo-b-app.svg', icons: 'b-gemme-violette' },
+    c: { name: 'Dégradé', mark: 'img/logo-c.svg', app: 'img/logo-c.svg', icons: 'c-degrade' },
+  };
+  let current = 'a';
+  try { const s = localStorage.getItem('whale-logo'); if (LOGOS[s]) current = s; } catch (e) {}
+  const apply = (k) => {
+    current = k;
+    document.querySelectorAll('[data-logo]').forEach((img) => (img.src = LOGOS[k].mark));
+    try { localStorage.setItem('whale-logo', k); } catch (e) {}
+  };
+  apply(current);
+  $('btnLogo').onclick = () => {
+    $('more').classList.add('hide');
+    Modal.show(`<h2>Choisir le logo</h2>
+      <div class="sub">Le logo change tout de suite dans la barre de titre et la barre latérale.</div>
+      <div class="logos">${Object.keys(LOGOS).map((k) => `<button data-k="${k}" class="${k === current ? 'on' : ''}"><img src="${LOGOS[k].app}" alt="">${LOGOS[k].name}</button>`).join('')}</div>
+      <div class="note" style="margin-top:12px">L'icône du fichier .exe et de la barre des tâches est fixée à la compilation. Pour la changer : <code>npx tauri icon assets/concepts/&lt;nom&gt;-app.svg</code>, puis recompiler.</div>
+      <div class="actions"><button class="tbtn" id="logoOk">Fermer</button></div>`);
+    document.querySelectorAll('.logos button').forEach((b) => (b.onclick = () => {
+      apply(b.dataset.k);
+      document.querySelectorAll('.logos button').forEach((x) => x.classList.toggle('on', x === b));
+    }));
+    $('logoOk').onclick = Modal.close;
+  };
+})();
