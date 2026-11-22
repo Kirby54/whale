@@ -153,12 +153,78 @@ window.Graph = (() => {
       .map((name, i) => ({ name, count: counts[name], color: new THREE.Color(PALETTE[i % PALETTE.length]), hex: PALETTE[i % PALETTE.length] }));
     if (selFolder != null && !counts[selFolder]) selFolder = null;
 
+    noteAt = {}; nameOfPt = {}; dateOfPt = {};
+    folderOfPt = new Array(N_CLOUD).fill(-1);
+    if (names.length && names.length <= MEANING_MAX) placeByMeaning(names); else placeBySlices(names);
+    names.forEach((n) => { const i = noteAt[n]; if (i != null) dateOfPt[i] = noteDate(n); });
+    buildWeb(); buildBins(); renderLegend(); style(); drawHist();
+  }
+
+  /* ---------- Placing notes ----------
+     Up to MEANING_MAX notes: by meaning. Notes about the same things (shared key words, TF-IDF)
+     or linked with [[ ]] end up close together, computed locally (core.js: similarityEdges, layout3d).
+     Bigger vaults fall back to one slice of the body per folder. */
+  const MEANING_MAX = 3000;
+  let layoutCache = { key: '', pos: {} };
+  const folderIndex = (n) => folders.findIndex((f) => f.name === folderName(notes[n].path));
+
+  // Spatial grid over the cloud, to find the nearest free point quickly
+  function makeGrid(indices, cell) {
+    const g = new Map(), key = (x, y, z) => `${Math.floor(x / cell)},${Math.floor(y / cell)},${Math.floor(z / cell)}`;
+    indices.forEach((i) => { const p = cloud[i], k = key(p.x, p.y, p.z); if (!g.has(k)) g.set(k, []); g.get(k).push(i); });
+    return {
+      nearest(target, taken) {
+        const cx = Math.floor(target.x / cell), cy = Math.floor(target.y / cell), cz = Math.floor(target.z / cell);
+        for (let r = 0; r < 40; r++) {
+          let best = -1, bd = Infinity;
+          for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) for (let dz = -r; dz <= r; dz++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz)) !== r) continue;
+            const list = g.get(`${cx + dx},${cy + dy},${cz + dz}`); if (!list) continue;
+            for (const i of list) { if (taken && taken.has(i)) continue; const d = cloud[i].distanceToSquared(target); if (d < bd) { bd = d; best = i; } }
+          }
+          if (best >= 0) return best;
+        }
+        return -1;
+      },
+    };
+  }
+
+  function placeByMeaning(names) {
+    const key = names.length + ':' + namesVersion + ':' + names.reduce((s, n) => s + notes[n].content.length, 0);
+    if (layoutCache.key !== key) {
+      const index = new Map(names.map((n, i) => [n, i]));
+      const docs = names.map((n) => { const p = parse(n); return { text: `${n} ${n} ${p.props.asset || ''} ${p.props.setup || ''} ${p.props.tags || ''} ${p.body}` }; });
+      const edges = Core.similarityEdges(docs, 5);
+      names.forEach((n, i) => parse(n).links.forEach((m) => { const j = index.get(m); if (j != null && j !== i) edges.push({ a: Math.min(i, j), b: Math.max(i, j), w: 1.2 }); }));
+      const L = Core.layout3d(names.length, edges, { seed: 11 });
+      layoutCache = { key, pos: Object.fromEntries(names.map((n, i) => [n, L[i]])) };
+    }
+    // Layout coordinates -> a spot on the whale's skin (x along the body, y/z around it)
+    const grid = makeGrid([...Array(BODY_N).keys()], 0.06), taken = new Set();
+    names.forEach((n) => {
+      const [u, v, w] = layoutCache.pos[n] || [0, 0, 0];
+      const t = 0.05 + 0.85 * (u + 1) / 2, a = Math.atan2(w, v || 1e-6);
+      const r = radius(t), c = Math.cos(a);
+      const target = new THREE.Vector3(X0 + t * (X1 - X0), spineY(t) + r * c * (c > 0 ? 0.74 : 0.95), r * Math.sin(a));
+      const idx = grid.nearest(target, taken);
+      if (idx < 0) return;
+      taken.add(idx); noteAt[n] = idx; nameOfPt[idx] = n; folderOfPt[idx] = folderIndex(n);
+    });
+    // The dust takes the color of the nearest note, so folders show as soft colored areas
+    const placed = Object.values(noteAt), noteGrid = makeGrid(placed, 0.25);
+    for (let i = 0; i < N_CLOUD; i++) {
+      if (nameOfPt[i] !== undefined) continue;
+      const j = noteGrid.nearest(cloud[i], null);
+      folderOfPt[i] = j >= 0 ? folderOfPt[j] : -1;
+    }
+  }
+
+  function placeBySlices(names) {
     // Each folder takes a slice of the body (from head to tail); fins and flukes take the color of the nearest slice
     const order = cloud.slice(0, BODY_N).map((p, i) => [p.x, i]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
     const total = names.length || 1;
     const shares = folders.map((f) => Math.max(f.count / total, 0.06));
     const sum = shares.reduce((a, b) => a + b, 0) || 1;
-    folderOfPt = new Array(N_CLOUD).fill(-1);
     const slices = [], maxX = []; let start = 0;
     folders.forEach((f, fi) => {
       const len = fi === folders.length - 1 ? BODY_N - start : Math.round((shares[fi] / sum) * BODY_N);
@@ -166,23 +232,19 @@ window.Graph = (() => {
       maxX.push(sl.length ? cloud[sl[sl.length - 1]].x : -Infinity);
     });
     for (let i = BODY_N; i < N_CLOUD && folders.length; i++) {
-      let fi = maxX.findIndex((x) => cloud[i].x <= x);
+      const fi = maxX.findIndex((x) => cloud[i].x <= x);
       folderOfPt[i] = fi < 0 ? folders.length - 1 : fi;
     }
-
-    // Place each note on a point in its folder's slice
-    noteAt = {}; nameOfPt = {}; dateOfPt = {};
     let seed = 3; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-    const byFolder = {}; names.sort().forEach((n) => { const f = folderName(notes[n].path); (byFolder[f] = byFolder[f] || []).push(n); });
+    const byFolder = {}; names.slice().sort().forEach((n) => { const f = folderName(notes[n].path); (byFolder[f] = byFolder[f] || []).push(n); });
     folders.forEach((f, fi) => {
-      const sl = slices[fi].slice(); const list = byFolder[f.name] || [];
-      list.forEach((n) => {
+      const sl = slices[fi].slice();
+      (byFolder[f.name] || []).forEach((n) => {
         if (!sl.length) return;
-        const k = Math.floor(rnd() * sl.length); const idx = sl.splice(k, 1)[0];
-        noteAt[n] = idx; nameOfPt[idx] = n; dateOfPt[idx] = noteDate(n);
+        const idx = sl.splice(Math.floor(rnd() * sl.length), 1)[0];
+        noteAt[n] = idx; nameOfPt[idx] = n;
       });
     });
-    buildWeb(); buildBins(); renderLegend(); style(); drawHist();
   }
 
   // Thin threads for every [[link]] between two notes (each pair drawn once)
