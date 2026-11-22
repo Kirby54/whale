@@ -1,0 +1,105 @@
+﻿<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whale</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <nav id="nav">
+    <div id="brand"><span class="b1">whale</span><span class="b2">journal</span></div>
+    <div id="brandbar"></div>
+    <button id="openPalette"><span>Chercher</span><kbd>Ctrl K</kbd></button>
+    <div class="navlinks">
+      <button class="nl" id="btnGraph">Cerveau</button>
+      <button class="nl" id="btnNotes">Notes</button>
+      <button class="nl" id="btnNew">Écrire</button>
+    </div>
+    <div class="navlinks">
+      <button class="nl" id="btnImport">Ajouter</button>
+      <button class="nl" id="btnMore">Plus</button>
+    </div>
+    <div id="more" class="hide">
+      <button class="mi" id="btnAsk">Demander à l'IA</button>
+      <button class="mi" id="btnDash">Tableau de bord</button>
+      <button class="mi" id="btnTimeline">Timeline</button>
+      <button class="mi" id="btnTable">Tableau des trades</button>
+      <div class="msep"></div>
+      <button class="mi" id="btnSettings">Réglages de l'IA</button>
+      <button class="mi" id="btnVault">Changer de coffre</button>
+    </div>
+    <div style="flex:1"></div>
+    <div id="status"></div>
+    <div id="aistatus">AUCUNE IA EN COURS</div>
+  </nav>
+
+  <aside id="side">
+    <div id="sidehead"><span id="vault" title=""></span></div>
+    <input id="search" placeholder="Filtrer les notes…" autocomplete="off">
+    <div id="tree"></div>
+  </aside>
+
+  <main id="main">
+    <div id="tabbar">
+      <div id="crumb"></div>
+      <button class="tbtn ai" id="btnClassify" title="L'IA remplit le type, les tags, les propriétés et les liens">✦ Classer avec l'IA</button>
+      <button class="tbtn" id="btnMode" title="Ctrl+E">Édition</button>
+      <button class="tbtn" id="btnDel" title="Déplacer dans la corbeille du coffre">Supprimer</button>
+    </div>
+    <div id="views">
+      <section class="view on" id="noteview">
+        <div id="notecol">
+          <input id="title" spellcheck="false">
+          <div id="reader"></div>
+          <textarea id="editor" spellcheck="false" style="display:none" placeholder="Écris ici… Colle une capture de chart avec Ctrl+V."></textarea>
+        </div>
+      </section>
+      <section class="view" id="graphview">
+        <canvas id="gcanvas"></canvas>
+        <div id="gtip"></div>
+        <div id="glegend"></div>
+        <div id="ghistwrap"><canvas id="ghist"></canvas><div id="ghistlabel"></div></div>
+      </section>
+      <section class="view" id="dashview"><div id="dash"></div></section>
+      <section class="view scrollv" id="timelineview"><div class="page" id="timeline"></div></section>
+      <section class="view scrollv" id="tableview"><div class="page wide" id="tradetable"></div></section>
+      <section class="view" id="askview">
+        <div id="askcol">
+          <div id="chat"></div>
+          <form id="askform">
+            <textarea id="askinput" rows="1" placeholder="Pose une question à ton journal… ex. « Pourquoi je perds sur TSLA ? »"></textarea>
+            <button class="tbtn ai" id="asksend" type="submit">Envoyer</button>
+          </form>
+          <div id="askhint"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <aside id="right">
+    <div class="rh"><span>Rétroliens</span><span id="blc"></span></div>
+    <div id="backlinks"></div>
+    <div class="rh" style="margin-top:18px"><span>Liens sortants</span><span id="olc"></span></div>
+    <div id="outlinks"></div>
+  </aside>
+</div>
+<div id="palette" class="modal hide">
+  <div class="pbox">
+    <input id="pinput" placeholder="Cherche une note, ou pose une question…" autocomplete="off" spellcheck="false">
+    <div id="presults"></div>
+  </div>
+</div>
+<div id="modal" class="modal hide"><div class="mbox" id="mbox"></div></div>
+<script src="vendor/three.min.js"></script>
+<script src="seed.js"></script>
+<script src="storage.js"></script>
+<script src="app.js"></script>
+<script src="graph.js"></script>
+<script src="ai.js"></script>
+<script src="import.js"></script>
+<script src="views.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>
