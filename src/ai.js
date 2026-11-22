@@ -75,7 +75,7 @@ window.AI = (() => {
       <div id="provClaude" style="display:${s.provider !== 'ollama' ? 'block' : 'none'}">
         <div class="row"><label>Clé API Anthropic</label>
           <input type="password" id="setKey" autocomplete="off" placeholder="${s.has_key ? 'Clé enregistrée ' + esc(s.key_hint) + ' · laisse vide pour la garder' : 'sk-ant-…'}">
-          <div class="note">Crée une clé sur console.anthropic.com. Elle est enregistrée seulement sur cet ordinateur, dans le dossier de configuration de Whale (jamais dans ton coffre). L'usage est facturé par Anthropic.</div>
+          <div class="note">Crée une clé sur console.anthropic.com. ${s.key_store ? 'Clé rangée dans le ' + esc(s.key_store) + ' de cet ordinateur.' : "Elle sera rangée dans le coffre-fort de Windows (Gestionnaire d'identifiants), jamais dans tes notes."} L'usage est facturé par Anthropic.</div>
         </div>
         <div class="row"><label>Modèle</label>
           <input type="text" id="setModel" list="models" value="${esc(s.claude_model)}">

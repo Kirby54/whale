@@ -38,7 +38,7 @@ impl Default for Settings {
         }
     }
 }
-struct SettingsState(Mutex<Settings>);
+struct SettingsState(Mutex<(Settings, bool)>); // (réglages, clé gardée dans le fichier ?)
 
 /// Ce que l'interface voit des réglages : la clé n'est jamais renvoyée en entier.
 #[derive(Serialize)]
@@ -46,6 +46,7 @@ struct PublicSettings {
     provider: String,
     has_key: bool,
     key_hint: String,
+    key_store: String,
     claude_model: String,
     ollama_url: String,
     ollama_model: String,
@@ -294,12 +295,57 @@ fn settings_file(app: &tauri::AppHandle) -> Option<PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join("settings.json"))
 }
 
-fn public(s: &Settings) -> PublicSettings {
+/* Clé API : rangée dans le coffre-fort du système (Gestionnaire d'identifiants Windows,
+   Trousseau macOS). Si le système n'en a pas, repli sur settings.json. */
+const KEY_SERVICE: &str = "app.whale.journal";
+const KEY_USER: &str = "anthropic-api-key";
+
+fn keyring_entry() -> Option<keyring::Entry> {
+    keyring::Entry::new(KEY_SERVICE, KEY_USER).ok()
+}
+fn keyring_get() -> Option<String> {
+    keyring_entry()?.get_password().ok().filter(|k| !k.trim().is_empty())
+}
+fn keyring_set(key: &str) -> bool {
+    match keyring_entry() {
+        // on relit pour vérifier que la clé est vraiment enregistrée
+        Some(e) => e.set_password(key).is_ok() && keyring_get().as_deref() == Some(key),
+        None => false,
+    }
+}
+fn keyring_delete() {
+    if let Some(e) = keyring_entry() {
+        let _ = e.delete_credential();
+    }
+}
+
+/// Écrit settings.json ; la clé n'y figure que si le coffre-fort du système est indisponible.
+fn persist(app: &tauri::AppHandle, s: &Settings, key_in_file: bool) -> Result<(), String> {
+    let Some(f) = settings_file(app) else { return Ok(()) };
+    if let Some(dir) = f.parent() {
+        fs::create_dir_all(dir).map_err(err)?;
+    }
+    let mut copy = s.clone();
+    if !key_in_file {
+        copy.claude_key.clear();
+    }
+    fs::write(f, serde_json::to_string_pretty(&copy).map_err(err)?).map_err(err)
+}
+
+fn public(s: &Settings, key_in_file: bool) -> PublicSettings {
     let k = s.claude_key.trim();
+    let tail: String = k.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
     PublicSettings {
         provider: s.provider.clone(),
         has_key: !k.is_empty(),
-        key_hint: if k.len() > 8 { format!("…{}", &k[k.len() - 4..]) } else { String::new() },
+        key_hint: if k.chars().count() > 8 { format!("…{tail}") } else { String::new() },
+        key_store: if k.is_empty() {
+            String::new()
+        } else if key_in_file {
+            "fichier de réglages (coffre-fort du système indisponible)".into()
+        } else {
+            "coffre-fort du système".into()
+        },
         claude_model: s.claude_model.clone(),
         ollama_url: s.ollama_url.clone(),
         ollama_model: s.ollama_model.clone(),
@@ -308,7 +354,8 @@ fn public(s: &Settings) -> PublicSettings {
 
 #[tauri::command]
 fn get_settings(state: State<SettingsState>) -> PublicSettings {
-    public(&state.0.lock().unwrap())
+    let st = state.0.lock().unwrap();
+    public(&st.0, st.1)
 }
 
 /// Enregistre les réglages. Une clé vide garde la clé déjà enregistrée.
@@ -322,10 +369,13 @@ fn save_settings(
     ollama_url: String,
     ollama_model: String,
 ) -> Result<PublicSettings, String> {
-    let mut s = state.0.lock().unwrap();
+    let mut st = state.0.lock().unwrap();
+    let (s, key_in_file) = &mut *st;
     s.provider = if provider == "ollama" { "ollama".into() } else { "claude".into() };
-    if !claude_key.trim().is_empty() {
-        s.claude_key = claude_key.trim().to_string();
+    let new_key = claude_key.trim();
+    if !new_key.is_empty() {
+        s.claude_key = new_key.to_string();
+        *key_in_file = !keyring_set(new_key);
     }
     if !claude_model.trim().is_empty() {
         s.claude_model = claude_model.trim().to_string();
@@ -336,23 +386,40 @@ fn save_settings(
     if !ollama_model.trim().is_empty() {
         s.ollama_model = ollama_model.trim().to_string();
     }
-    if let Some(f) = settings_file(&app) {
-        if let Some(dir) = f.parent() {
-            fs::create_dir_all(dir).map_err(err)?;
-        }
-        fs::write(f, serde_json::to_string_pretty(&*s).map_err(err)?).map_err(err)?;
-    }
-    Ok(public(&s))
+    persist(&app, s, *key_in_file)?;
+    Ok(public(s, *key_in_file))
 }
 
 #[tauri::command]
 fn forget_key(app: tauri::AppHandle, state: State<SettingsState>) -> Result<PublicSettings, String> {
-    let mut s = state.0.lock().unwrap();
+    let mut st = state.0.lock().unwrap();
+    let (s, key_in_file) = &mut *st;
     s.claude_key.clear();
-    if let Some(f) = settings_file(&app) {
-        let _ = fs::write(f, serde_json::to_string_pretty(&*s).map_err(err)?);
+    keyring_delete();
+    *key_in_file = false;
+    persist(&app, s, false)?;
+    Ok(public(s, false))
+}
+
+/// Au démarrage : lit les réglages, récupère la clé dans le coffre-fort du système,
+/// et y déplace une ancienne clé encore écrite en clair dans settings.json.
+fn load_settings(app: &tauri::AppHandle) -> (Settings, bool) {
+    let mut s = settings_file(app)
+        .and_then(|f| fs::read_to_string(f).ok())
+        .and_then(|t| serde_json::from_str::<Settings>(&t).ok())
+        .unwrap_or_default();
+    let file_key = s.claude_key.trim().to_string();
+    let mut key_in_file = false;
+    if !file_key.is_empty() {
+        if keyring_set(&file_key) {
+            let _ = persist(app, &s, false); // migration : on retire la clé du fichier
+        } else {
+            key_in_file = true;
+        }
+    } else if let Some(k) = keyring_get() {
+        s.claude_key = k;
     }
-    Ok(public(&s))
+    (s, key_in_file)
 }
 
 /// Envoie une requête au fournisseur d'IA choisi et renvoie la réponse JSON brute.
@@ -360,7 +427,7 @@ fn forget_key(app: tauri::AppHandle, state: State<SettingsState>) -> Result<Publ
 /// - ollama : POST {ollama_url}/api/chat
 #[tauri::command]
 async fn ai_request(state: State<'_, SettingsState>, body: serde_json::Value) -> Result<serde_json::Value, String> {
-    let s = state.0.lock().unwrap().clone();
+    let s = state.0.lock().unwrap().0.clone();
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(600))
         .build()
@@ -409,11 +476,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Vault(Mutex::new(PathBuf::new())))
         .setup(|app| {
-            let s = settings_file(app.handle())
-                .and_then(|f| fs::read_to_string(f).ok())
-                .and_then(|t| serde_json::from_str::<Settings>(&t).ok())
-                .unwrap_or_default();
-            app.manage(SettingsState(Mutex::new(s)));
+            let loaded = load_settings(app.handle());
+            app.manage(SettingsState(Mutex::new(loaded)));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -450,7 +514,7 @@ mod tests {
     #[test]
     fn safe_join_refuse_de_sortir_du_coffre() {
         let root = Path::new("C:/coffre");
-        for bad in ["", "../secret.txt", "Trades/../../x.md", "/etc/passwd", "C:/Windows/x.md", "\\serveur\partage\x.md", "."] {
+        for bad in ["", "../secret.txt", "Trades/../../x.md", "/etc/passwd", "C:/Windows/x.md", r"\\serveur\partage\x.md", "."] {
             assert!(safe_join(root, bad).is_err(), "devrait refuser {bad:?}");
         }
     }
