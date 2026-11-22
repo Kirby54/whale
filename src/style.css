@@ -229,3 +229,15 @@ tr.click:hover td{background:var(--bg3)}
 
 @media (max-width:1100px){#right{display:none}}
 @media (max-width:760px){#nav{width:120px}#openPalette kbd{display:none}}
+
+/* ---------- Barre de titre intégrée (remplace celle de Windows) ---------- */
+#titlebar{display:none}
+body.desktop #titlebar{display:flex;height:32px;flex:none;align-items:stretch;justify-content:space-between;background:#000;border-bottom:1px solid #161616;user-select:none;-webkit-user-select:none}
+body.desktop #app{height:calc(100vh - 32px)}
+.tb-title{display:flex;align-items:center;gap:8px;padding-left:12px;color:#8a8a8a;font-size:12px;flex:1}
+.tb-title svg{width:15px;height:15px;color:#a68bff}
+.tb-btns{display:flex}
+.tb-btns button{width:46px;height:100%;display:grid;place-items:center;color:#9a9a9a;border-radius:0}
+.tb-btns button:hover{background:#1a1a1a;color:#fff}
+.tb-btns #winClose:hover{background:#c42b1c;color:#fff}
+.tb-btns svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:1}
