@@ -27,7 +27,6 @@ f.onload = async () => {
     w.AIPanel.send('Everything about BTC this month'); await wait(900);
   } else if (shot === 'brain-full') {
     w.setView('graph'); await wait(400);
-    d.querySelector('#glegend .lr').dispatchEvent(new w.MouseEvent('mouseenter'));
   } else if (shot === 'editor') {
     const n = '2026-11-05 BTC short';
     // "notes" is a top-level let in app.js, not a window property: reach it through eval in the frame
