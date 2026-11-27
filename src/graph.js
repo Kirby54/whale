@@ -77,40 +77,31 @@ window.Graph = (() => {
     return geo;
   }
 
-  /* ---------- Dust around the whale ----------
-     Faint particles drifting slowly around the body, like plankton. Purely decorative:
-     no notes, not clickable, not affected by highlights or the light sweep. */
+  /* ---------- Water around the whale ----------
+     Faint particles streaming past the body from head to tail, as if the whale swims forward,
+     in random clusters like plankton. Purely decorative: no notes, not clickable. */
   function makeDust(count) {
     let seed = 99; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
     const gauss = () => { let u = 0; while (!u) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
-    const insideBody = (x, y, z) => {
-      if (x < X0 || x > X1) return false;
-      const t = tOf(x), r = radius(t) * 1.15, dy = (y - spineY(t)) / (r * 0.95), dz = z / r;
-      return dy * dy + dz * dz < 1;
-    };
-    // A point just outside the skin: t along the body (can go past the tail), a around it, `extra` away from the skin
-    const nearSkin = (t, a, extra) => {
-      const tc = Math.min(t, 1), r = radius(tc), c = Math.cos(a);
-      return [X0 + t * (X1 - X0), spineY(tc) + (r + extra) * c * (c > 0 ? 0.74 : 0.95), (r + extra) * Math.sin(a)];
-    };
-    // Random clusters hugging the whale: a few dense ones, many light ones, so some areas are busy and others empty
-    const clusters = Array.from({ length: 60 }, () => ({
-      c: nearSkin(rnd() * 1.18, rnd() * Math.PI * 2, 0.06 + rnd() * 0.5),
-      spread: 0.04 + rnd() * 0.2,
-      weight: Math.pow(rnd(), 3),
-    }));
+    // The water streams along x (see the shader), so particles are spread over the whole stream length,
+    // in a tube around the whale's axis; the shader pushes them around the body as they pass.
+    const XMIN = -4.3, SPAN = 9.0;
+    const around = (rho, a) => [rho * Math.cos(a) * 0.85, rho * Math.sin(a)];
+    // Random clusters (a few dense ones, many light ones) that drift past like clouds of plankton
+    const clusters = Array.from({ length: 70 }, () => {
+      const [y, z] = around(0.25 + rnd() * 0.85, rnd() * Math.PI * 2);
+      return { c: [XMIN + rnd() * SPAN, y, z], spread: 0.05 + rnd() * 0.22, weight: Math.pow(rnd(), 3) };
+    });
     const totalW = clusters.reduce((s, k) => s + k.weight, 0);
     const pickCluster = () => { let r = rnd() * totalW; for (const k of clusters) { r -= k.weight; if (r <= 0) return k; } return clusters[0]; };
     const pos = new Float32Array(count * 3), size = new Float32Array(count), alpha = new Float32Array(count), phase = new Float32Array(count);
     for (let i = 0; i < count; i++) {
-      let x, y, z, tries = 0;
-      do {
-        const roll = rnd();
-        if (roll < 0.68) { const k = pickCluster(); x = k.c[0] + gauss() * k.spread; y = k.c[1] + gauss() * k.spread; z = k.c[2] + gauss() * k.spread; }
-        else if (roll < 0.95) { [x, y, z] = nearSkin(rnd() * 1.15, rnd() * Math.PI * 2, -Math.log(1 - rnd() * 0.999) * 0.16); } // thin halo around the body
-        else { x = (rnd() * 2 - 1) * 3.8; y = (rnd() * 2 - 1) * 2.1; z = (rnd() * 2 - 1) * 2.3; } // a few stray particles further away
-      } while (insideBody(x, y, z) && ++tries < 20);
-      pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+      let x, y, z;
+      const roll = rnd();
+      if (roll < 0.66) { const k = pickCluster(); x = k.c[0] + gauss() * k.spread * 1.6; y = k.c[1] + gauss() * k.spread; z = k.c[2] + gauss() * k.spread; }
+      else if (roll < 0.95) { x = XMIN + rnd() * SPAN; [y, z] = around(0.15 - Math.log(1 - rnd() * 0.999) * 0.32, rnd() * Math.PI * 2); } // close halo
+      else { x = XMIN + rnd() * SPAN; [y, z] = around(0.8 + rnd() * 1.6, rnd() * Math.PI * 2); } // a few further away
+      pos[i * 3] = XMIN + (((x - XMIN) % SPAN) + SPAN) % SPAN; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
       size[i] = 0.8 + rnd() * 1.0;
       alpha[i] = 0.08 + Math.pow(rnd(), 2) * 0.22;
       phase[i] = rnd() * Math.PI * 2;
@@ -125,9 +116,27 @@ window.Graph = (() => {
       uniforms: { uTime: u.uTime, uPR: u.uPR, uDist: u.uDist },
       vertexShader: `attribute float asize; attribute float aalpha; attribute float aphase;
         uniform float uTime; uniform float uPR; uniform float uDist; varying float vA;
+        // Same body shape as the whale (radius / spine along x), to make the water flow around it
+        float rad(float t){ return 0.035 + (t < 0.32 ? 0.5 * pow(sin(t / 0.32 * 1.5708), 0.8) : 0.5 * pow(max(0.0, 1.0 - pow((t - 0.32) / 0.68, 1.7)), 1.2)); }
+        float spY(float t){ return 0.07 * sin(3.14159 * t) - 0.06 * t - 0.03 * max(0.0, 0.12 - t) / 0.12; }
         void main(){
-          vec3 p = position + 0.05 * vec3(sin(uTime * 0.13 + aphase), sin(uTime * 0.11 + aphase * 1.7), cos(uTime * 0.09 + aphase * 0.6));
-          vA = aalpha * (0.7 + 0.3 * sin(uTime * 0.5 + aphase * 3.0));
+          // The whale swims forward: the water streams past it from the head (-x) to the tail (+x), then loops
+          const float XMIN = -4.3, XMAX = 4.7, SPAN = 9.0;
+          vec3 p = position;
+          p.x = XMIN + mod(p.x - XMIN + uTime * 0.16, SPAN);
+          // gentle currents: each particle sways and rises / sinks a little
+          p.y += 0.05 * sin(uTime * 0.7 + p.x * 1.9 + aphase) + 0.03 * sin(uTime * 0.23 + aphase * 2.3);
+          p.z += 0.05 * cos(uTime * 0.6 + p.x * 1.6 + aphase * 1.3);
+          // flow around the body instead of through it
+          if (p.x > -1.75 && p.x < 1.55) {
+            float t = (p.x + 1.75) / 3.3, r = rad(t) * 1.12;
+            vec2 q = vec2((p.y - spY(t)) / (r * 0.95), p.z / r);
+            float d = length(q);
+            if (d < 1.06) { q *= (1.06 + 0.04 * fract(aphase)) / max(d, 0.001); p.y = spY(t) + q.x * r * 0.95; p.z = q.y * r; }
+          }
+          // fade in at the front and out at the back so the loop is invisible
+          float edge = smoothstep(XMIN, XMIN + 0.9, p.x) * (1.0 - smoothstep(XMAX - 0.9, XMAX, p.x));
+          vA = aalpha * edge * (0.7 + 0.3 * sin(uTime * 0.5 + aphase * 3.0));
           vec4 mv = modelViewMatrix * vec4(p, 1.0);
           gl_PointSize = asize * uPR * (uDist / -mv.z); gl_Position = projectionMatrix * mv; }`,
       fragmentShader: `varying float vA;
