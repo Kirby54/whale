@@ -24,6 +24,13 @@
     ['Trades table', () => setView('table')],
     ['Setups', () => setView('setups')],
     ['Analysis: chart any market', () => setView('analysis')],
+    ['Watchlist and price alerts (W)', () => Analysis.go({ fn: 'watch' })],
+    ['Macro: rates and economy (ECO)', () => Analysis.go({ fn: 'macro' })],
+    ['Screener (EQS)', () => Analysis.go({ fn: 'screener' })],
+    ['Correlation matrix (CORR)', () => Analysis.go({ fn: 'corr' })],
+    ['Several charts side by side (GRID)', () => Analysis.go({ fn: 'grid' })],
+    ['Market news (TOP)', () => Analysis.go({ fn: 'topnews' })],
+    ['Data sources and your own keys', () => Desk.dataSources()],
     ['Classify all notes without tags (AI)', () => AI.classifyAll()],
     ['AI settings', () => AI.openSettings()],
     ['Change vault', () => changeVault()],
@@ -36,6 +43,10 @@
   function render() {
     const q = inp.value.trim(), ql = q.toLowerCase();
     items = [];
+    // Bloomberg-style commands first: "TSLA GP", "AAPL DES", "ECO", "BTC ALRT 70000"
+    const cmd = q && Market.parseCommand(q);
+    const CMD_LABEL = { chart: 'Chart', company: 'Company results', news: 'News', alert: 'Price alert', watch: 'Watchlist', macro: 'Macro', screener: 'Screener', corr: 'Correlation', grid: 'Grid of charts', topnews: 'Market news' };
+    if (cmd) items.push({ label: `<span class="ask">↵ ${CMD_LABEL[cmd.fn] || cmd.fn}</span> ${cmd.symbol ? esc(Market.displayName(cmd.symbol)) + ' <code>' + esc(cmd.symbol) + '</code>' : ''}${cmd.price ? ' at ' + esc(String(cmd.price)) : ''}`, hint: 'command', run: () => Analysis.go(cmd) });
     if (q) items.push({ label: `<span class="ask">✦ Ask the AI:</span> ${esc(q)}`, hint: 'Enter', run: () => { setView('ask'); setTimeout(() => { $('askinput').value = q; $('askform').requestSubmit(); }, 30); } });
     const names = Object.keys(notes);
     let found;
@@ -46,6 +57,8 @@
     } else found = names.slice().sort((a, b) => noteDate(b).localeCompare(noteDate(a))).slice(0, 8);
     found.forEach((n) => { const p = parse(n); items.push({ label: `<i class="dot" style="background:${colorOf(p)}"></i>${esc(n)}`, hint: esc(dirOf(notes[n].path) || TYPE_LABEL[p.type] || ''), run: () => open(n) }); });
     ACTIONS.filter(([l]) => !q || l.toLowerCase().includes(ql)).forEach(([l, f]) => items.push({ label: esc(l), hint: 'action', run: f }));
+    // a word that looks like a market symbol: offer its chart
+    if (q && !cmd && Market.looksLikeSymbol(q)) { const sym = Market.normalizeSymbol(q); items.splice(1, 0, { label: `<span class="ask">↗ Chart</span> ${esc(Market.displayName(sym))} <code>${esc(sym)}</code>`, hint: 'GP', run: () => Analysis.go({ fn: 'chart', symbol: sym }) }); }
     sel = 0; paint();
   }
   function paint() {

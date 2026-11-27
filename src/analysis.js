@@ -1,22 +1,51 @@
-/* Whale — Analysis tab: any market, live chart, indicators, drawing tools and a quant desk panel
-   (volatility, risk, distribution, trend vs mean reversion, benchmark, volume profile, Monte Carlo,
-   position sizing, seasonality). Charts: TradingView Lightweight Charts (Apache-2.0). */
+/* Whale — Analysis tab, a personal market terminal: command bar (TSLA GP, AAPL DES, ECO…), a minimal live chart with
+   indicators and editable drawings, a quant desk panel, a watchlist with alerts, and the Company, News, Grid, Macro,
+   Screener and Correlation views (desk.js). Charts: TradingView Lightweight Charts (Apache-2.0). */
 window.Analysis = (() => {
   const LC = window.LightweightCharts;
-  const COLORS = { up: '#3fb950', down: '#f85149', sma20: '#58a6ff', sma50: '#d29922', sma200: '#f472b6', ema21: '#2dd4bf', bb: '#8b7cf6', vwap: '#facc15', mc: '#c4b5ff', draw: '#a68bff' };
+  const COLORS = { up: '#3fb950', down: '#f85149', sma20: '#6b9cf0', sma50: '#d0a93c', sma200: '#c084fc', ema21: '#38c2b0', bb: '#8b7cf6', vwap: '#e8c547', mc: '#a89bf5', draw: '#a68bff' };
   const IND = [
-    ['sma20', 'SMA 20'], ['sma50', 'SMA 50'], ['sma200', 'SMA 200'], ['ema21', 'EMA 21'], ['bb', 'Bollinger'], ['vwap', 'VWAP'],
-    ['vol', 'Volume'], ['rsi', 'RSI'], ['macd', 'MACD'], ['mc', 'Monte Carlo'],
+    ['sma20', 'SMA 20'], ['sma50', 'SMA 50'], ['sma200', 'SMA 200'], ['ema21', 'EMA 21'], ['bb', 'Bollinger bands'], ['vwap', 'VWAP'],
+    ['vol', 'Volume'], ['rsi', 'RSI 14'], ['macd', 'MACD'], ['mc', 'Monte Carlo cone'],
   ];
+  const IND_COLOR = { sma20: COLORS.sma20, sma50: COLORS.sma50, sma200: COLORS.sma200, ema21: COLORS.ema21, bb: COLORS.bb, vwap: COLORS.vwap, vol: '#555', rsi: '#a89bf5', macd: '#6b9cf0', mc: COLORS.mc };
   const TOOLS = [['hline', 'Level', 'Click a price to draw a horizontal level'], ['trend', 'Trend line', 'Click two points'], ['fib', 'Fibonacci', 'Click the swing start, then the swing end'], ['long', 'Long', 'Click the entry, then the stop'], ['short', 'Short', 'Click the entry, then the stop'], ['measure', 'Measure', 'Click two points to measure the move']];
+  const TYPES = [['area', 'Area'], ['line', 'Line'], ['candles', 'Candles'], ['bars', 'Bars (OHLC)']];
+  const TABS = [['chart', 'Chart', 'GP'], ['company', 'Company', 'DES'], ['news', 'News', 'N'], ['grid', 'Grid', 'GRID'], ['macro', 'Macro', 'ECO'], ['screener', 'Screener', 'EQS'], ['corr', 'Correlation', 'CORR']];
+  const svg = (body) => `<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+  const ICON = {
+    select: svg('<path d="M5 3l11 6.5-4.6 1.4L9.3 16z"/>'),
+    hline: svg('<path d="M2.5 10h15"/><circle cx="10" cy="10" r="1.8"/>'),
+    trend: svg('<path d="M4 15.5L16 4.5"/><circle cx="4" cy="15.5" r="1.7"/><circle cx="16" cy="4.5" r="1.7"/>'),
+    fib: svg('<path d="M3 4h14"/><path d="M3 8h14" opacity=".55"/><path d="M3 12h14" opacity=".55"/><path d="M3 16h14"/>'),
+    long: svg('<path d="M3 14l4.5-4.5 3 3L17 6"/><path d="M12.5 6H17v4.5"/>'),
+    short: svg('<path d="M3 6l4.5 4.5 3-3L17 14"/><path d="M12.5 14H17V9.5"/>'),
+    measure: svg('<path d="M3.5 13.5l10-10 3 3-10 10z"/><path d="M7 10l1.4 1.4M9.5 7.5l1.4 1.4M12 5l1.4 1.4"/>'),
+    trash: svg('<path d="M4 6h12M8.5 6V4h3v2M6 6l.8 10.5h6.4L14 6"/>'),
+    area: svg('<path d="M3 15l4-5 3 3 7-8v12H3z" fill="currentColor" opacity=".22" stroke="none"/><path d="M3 15l4-5 3 3 7-8"/>'),
+    line: svg('<path d="M3 14l4-5 3 3 7-8"/>'),
+    candles: svg('<path d="M6.5 3v14M13.5 5v12"/><rect x="5" y="6.5" width="3" height="6.5" rx=".4"/><rect x="12" y="8" width="3" height="5" rx=".4"/>'),
+    bars: svg('<path d="M6 4v12M4 7h2M6 13h2M14 6v10M12 9h2M14 12h2"/>'),
+    search: svg('<circle cx="8.5" cy="8.5" r="5"/><path d="M12.5 12.5L17 17"/>'),
+  };
   const fmt = (v, d) => (v == null || !isFinite(v) ? '—' : Number(v).toLocaleString(LOCALE, { maximumFractionDigits: d == null ? (Math.abs(v) >= 1000 ? 2 : Math.abs(v) >= 1 ? 4 : 6) : d, minimumFractionDigits: 0 }));
   const pct = (v, d = 2) => (v == null || !isFinite(v) ? '—' : (v * 100).toFixed(d) + '%');
   const sgn = (v, d = 2) => (v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(d) + '%');
+  // 478.8B, 1.2T, 350M (company figures)
+  const fmtBig = (v) => { if (v == null || !isFinite(v)) return '—'; const a = Math.abs(v); for (const [n, u] of [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']]) if (a >= n) return (v / n).toFixed(a >= n * 100 ? 0 : 1) + u; return fmt(v, 2); };
+  const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`;
+  // A small sparkline for lists and tiles
+  function sparkSvg(vals, w = 84, h = 24, color) {
+    const v = (vals || []).filter((x) => x != null && isFinite(x)); if (v.length < 2) return `<svg width="${w}" height="${h}"></svg>`;
+    const lo = Math.min(...v), hi = Math.max(...v), c = color || (v[v.length - 1] >= v[0] ? COLORS.up : COLORS.down);
+    const pts = v.map((x, i) => `${((i / (v.length - 1)) * (w - 2) + 1).toFixed(1)},${(h - 2 - ((x - lo) / (hi - lo || 1)) * (h - 4)).toFixed(1)}`).join(' ');
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" class="spark"><polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+  }
 
-  let state = { symbol: 'BTC-USD', tf: '1Y', ind: { sma20: true, sma50: true, sma200: false, ema21: false, bb: false, vwap: false, vol: true, rsi: true, macd: false, mc: false }, account: 10000, riskPct: 1, horizon: 20 };
+  let state = { symbol: 'BTC-USD', tf: '1Y', type: 'area', tab: 'chart', ptab: 'watch', newsScope: 'symbol', ind: { sma20: false, sma50: true, sma200: false, ema21: false, bb: false, vwap: false, vol: true, rsi: false, macd: false, mc: false }, account: 10000, riskPct: 1, horizon: 20 };
   try { Object.assign(state, JSON.parse(localStorage.getItem('whale-analysis') || '{}')); } catch (e) {}
   const save = () => { try { localStorage.setItem('whale-analysis', JSON.stringify(state)); } catch (e) {} };
-  let selected = null, drag = null, redrawRaf = 0;
+  let selected = null, drag = null, redrawRaf = 0, panelDirty = true, dataKeys = { fred: false, polygon: false, finnhub: false }, live = null;
   const DRAW_COLORS = ['#a68bff', '#58a6ff', '#2dd4bf', '#3fb950', '#facc15', '#f0883e', '#f85149', '#e6e6e6'];
   const uid = () => Math.random().toString(36).slice(2, 10);
   let hzTimer = null, built = false, data = null, bench = null, charts = {}, series = {}, drawings = [], pending = null, tool = null, refreshTimer = null, loading = 0;
@@ -25,59 +54,85 @@ window.Analysis = (() => {
   function build() {
     const host = $('analysis');
     host.innerHTML = `
-      <div class="an-top">
-        <div class="an-search"><input id="anSym" spellcheck="false" autocomplete="off" placeholder="Symbol: BTC, EURUSD, TSLA, gold, SPX…"><div id="anSugg" class="an-sugg hide"></div></div>
-        <div class="an-tfs">${Market.TIMEFRAMES.map((t) => `<button data-tf="${t.id}">${t.id}</button>`).join('')}</div>
-        <div class="an-quote" id="anQuote"></div>
-        <div class="an-actions"><button class="tbtn ai" id="anAsk">✦ Ask AI</button><button class="tbtn" id="anSave">Save to journal</button></div>
+      <div class="an-head">
+        <div class="an-search">${ICON.search}<input id="anSym" spellcheck="false" autocomplete="off" placeholder="Symbol or command: TSLA, EURUSD, AAPL DES, ECO, BTC ALRT 70000"><div id="anSugg" class="an-sugg hide"></div></div>
+        <nav class="an-tabs">${TABS.map(([k, l, code]) => `<button data-tab="${k}" title="${l} (${code})">${l}<small>${code}</small></button>`).join('')}</nav>
+        <div class="an-actions"><button class="an-ghost ai" id="anAsk">✦ Ask AI</button><button class="an-ghost" id="anSave">Save to journal</button></div>
       </div>
-      <div class="an-bar">
-        <div class="an-inds">${IND.map(([k, l]) => `<button class="chip" data-ind="${k}">${l}</button>`).join('')}</div>
-        <div class="an-tools">${TOOLS.map(([k, l, h]) => `<button class="chip" data-tool="${k}" title="${h}">${l}</button>`).join('')}<button class="chip" id="anClear" title="Remove the drawings on this symbol">Clear</button></div>
-      </div>
-      <div class="an-body">
-        <div class="an-charts">
-          <div class="an-hint" id="anHint"></div>
-          <div class="an-edit hide" id="anEdit">
-            <b id="anEditT"></b>
-            <input id="anEditName" spellcheck="false" placeholder="Name it, e.g. weekly resistance">
-            <span class="an-edit-c" id="anEditC">${DRAW_COLORS.map((c) => `<button data-c="${c}" style="background:${c}" title="Color"></button>`).join('')}</span>
-            <label id="anEditRRw">Target <input type="number" id="anEditRR" min="0.1" step="0.1"> R</label>
-            <button class="tbtn an-mini" id="anEditDel" title="Delete this drawing (Delete key)">Delete</button>
+      <div class="an-views">
+        <section class="an-view" data-view="chart">
+          <div class="an-sub">
+            <div class="an-quote" id="anQuote"></div>
+            <div class="an-ctrl">
+              <div class="an-seg">${Market.TIMEFRAMES.map((t) => `<button data-tf="${t.id}">${t.id}</button>`).join('')}</div>
+              <div class="an-seg an-seg-i">${TYPES.map(([k, l]) => `<button data-ctype="${k}" title="${l}">${ICON[k]}</button>`).join('')}</div>
+              <div class="an-menu"><button class="an-ghost" id="anIndBtn">Indicators <span id="anIndN"></span></button>
+                <div class="an-pop hide" id="anIndPop">${IND.map(([k, l]) => `<button class="an-pi" data-ind="${k}"><i style="background:${IND_COLOR[k]}"></i><span>${l}</span><b></b></button>`).join('')}</div></div>
+            </div>
           </div>
-          <div id="anMain" class="an-pane an-main"></div>
-          <div id="anRsi" class="an-pane an-sub"><span class="an-pane-l">RSI 14</span></div>
-          <div id="anMacd" class="an-pane an-sub"><span class="an-pane-l">MACD 12 26 9</span></div>
-          <div class="an-source" id="anSource"></div>
-        </div>
-        <aside class="an-panel" id="anPanel"></aside>
+          <div class="an-body">
+            <div class="an-rail">
+              <button data-tool="" title="Select and move drawings (Esc)">${ICON.select}</button><span class="an-rail-sep"></span>
+              ${TOOLS.map(([k, l, h]) => `<button data-tool="${k}" title="${l}: ${h}">${ICON[k]}</button>`).join('')}<span class="an-rail-sep"></span>
+              <button id="anClear" title="Remove all drawings on this symbol">${ICON.trash}</button>
+            </div>
+            <div class="an-charts">
+              <div class="an-legend" id="anLegend"></div>
+              <div class="an-hint" id="anHint"></div>
+              <div class="an-edit hide" id="anEdit">
+                <b id="anEditT"></b>
+                <input id="anEditName" spellcheck="false" placeholder="Name it, e.g. weekly resistance">
+                <span class="an-edit-c" id="anEditC">${DRAW_COLORS.map((c) => `<button data-c="${c}" style="background:${c}" title="Color"></button>`).join('')}</span>
+                <label id="anEditRRw">Target <input type="number" id="anEditRR" min="0.1" step="0.1"> R</label>
+                <button class="an-ghost an-mini" id="anEditAlert" title="Get an alert when the price reaches this level">Alert</button>
+                <button class="an-ghost an-mini" id="anEditDel" title="Delete this drawing (Delete key)">Delete</button>
+              </div>
+              <div id="anMain" class="an-pane an-main"></div>
+              <div id="anRsi" class="an-pane an-lower"><span class="an-pane-l">RSI 14</span></div>
+              <div id="anMacd" class="an-pane an-lower"><span class="an-pane-l">MACD 12 26 9</span></div>
+              <div class="an-source"><span id="anSource"></span><a class="an-attr" id="anAttr">Charts by TradingView</a></div>
+            </div>
+            <aside class="an-panel">
+              <div class="an-ptabs"><button data-ptab="watch">Watchlist</button><button data-ptab="stats">Stats</button><button data-ptab="draw">Drawings</button></div>
+              <div class="an-pbody" data-pbody="watch" id="anPWatch"></div>
+              <div class="an-pbody" data-pbody="stats" id="anPanel"></div>
+              <div class="an-pbody" data-pbody="draw"><div id="anDl"></div></div>
+            </aside>
+          </div>
+        </section>
+        ${TABS.slice(1).map(([k]) => `<section class="an-view hide" data-view="${k}"></section>`).join('')}
       </div>`;
     const opts = (extra) => Object.assign({
       autoSize: true,
       localization: { locale: LOCALE, priceFormatter: (p) => fmt(p) }, // the app's language, and prices like 108,000
-      layout: { background: { type: 'solid', color: '#000' }, textColor: '#8a8a8a', fontFamily: 'system-ui, -apple-system, Segoe UI, sans-serif', fontSize: 11 },
-      grid: { vertLines: { color: '#0f0f0f' }, horzLines: { color: '#0f0f0f' } },
-      rightPriceScale: { borderColor: '#1c1c1c' },
-      timeScale: { borderColor: '#1c1c1c', rightOffset: 6 },
-      crosshair: { mode: LC.CrosshairMode.Normal, vertLine: { color: '#444', labelBackgroundColor: '#1d1a2b' }, horzLine: { color: '#444', labelBackgroundColor: '#1d1a2b' } },
+      layout: { background: { type: 'solid', color: '#000' }, textColor: '#6f6f6f', fontFamily: 'system-ui, -apple-system, Segoe UI, sans-serif', fontSize: 11, attributionLogo: false },
+      grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
+      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.1, bottom: 0.08 } },
+      timeScale: { borderVisible: false, rightOffset: 4, barSpacing: 6, minBarSpacing: 0.4 },
+      crosshair: {
+        mode: LC.CrosshairMode.Normal,
+        vertLine: { color: 'rgba(255,255,255,0.22)', width: 1, style: 3, labelBackgroundColor: '#1a1a1a' },
+        horzLine: { color: 'rgba(255,255,255,0.22)', width: 1, style: 3, labelBackgroundColor: '#1a1a1a' },
+      },
     }, extra || {});
     charts.main = LC.createChart($('anMain'), opts());
     // the lower panes follow the main chart (scroll and zoom happen on the main chart)
-    const sub = { timeScale: { visible: false, rightOffset: 6 }, handleScroll: false, handleScale: false };
+    const sub = { timeScale: { visible: false, rightOffset: 4 }, handleScroll: false, handleScale: false, rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.15, bottom: 0.15 } } };
     charts.rsi = LC.createChart($('anRsi'), opts(Object.assign({ localization: { locale: LOCALE, priceFormatter: (v) => v.toFixed(1) } }, sub)));
     charts.macd = LC.createChart($('anMacd'), opts(sub));
-    const line = (chart, color, extra) => chart.addLineSeries(Object.assign({ color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }, extra || {}));
-    series.candle = charts.main.addCandlestickSeries({ upColor: COLORS.up, downColor: COLORS.down, borderVisible: false, wickUpColor: COLORS.up, wickDownColor: COLORS.down });
+    const line = (chart, color, extra) => chart.addLineSeries(Object.assign({ color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }, extra || {}));
     series.volume = charts.main.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false });
-    charts.main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+    charts.main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.86, bottom: 0 } });
     series.sma20 = line(charts.main, COLORS.sma20); series.sma50 = line(charts.main, COLORS.sma50); series.sma200 = line(charts.main, COLORS.sma200); series.ema21 = line(charts.main, COLORS.ema21);
-    series.bbU = line(charts.main, COLORS.bb, { lineStyle: 2, lineWidth: 1 }); series.bbM = line(charts.main, COLORS.bb, { lineWidth: 1 }); series.bbL = line(charts.main, COLORS.bb, { lineStyle: 2, lineWidth: 1 });
-    series.vwap = line(charts.main, COLORS.vwap, { lineWidth: 1.5 });
-    series.mc95 = line(charts.main, COLORS.mc, { lineStyle: 2, lineWidth: 1 }); series.mc50 = line(charts.main, COLORS.mc, { lineWidth: 1.5 }); series.mc5 = line(charts.main, COLORS.mc, { lineStyle: 2, lineWidth: 1 });
-    series.rsi = line(charts.rsi, '#c4b5ff', { lastValueVisible: true });
-    [70, 30].forEach((v) => series.rsi.createPriceLine({ price: v, color: '#333', lineWidth: 1, lineStyle: 2, axisLabelVisible: false }));
+    series.bbU = line(charts.main, rgba(COLORS.bb, 0.7), { lineStyle: 2 }); series.bbM = line(charts.main, rgba(COLORS.bb, 0.45)); series.bbL = line(charts.main, rgba(COLORS.bb, 0.7), { lineStyle: 2 });
+    series.vwap = line(charts.main, COLORS.vwap);
+    series.mc95 = line(charts.main, COLORS.mc, { lineStyle: 2 }); series.mc50 = line(charts.main, COLORS.mc); series.mc5 = line(charts.main, COLORS.mc, { lineStyle: 2 });
+    makePriceSeries();
+    series.rsi = line(charts.rsi, '#a89bf5', { lastValueVisible: true, lineWidth: 1.5 });
+    [70, 30].forEach((v) => series.rsi.createPriceLine({ price: v, color: '#2a2a2a', lineWidth: 1, lineStyle: 2, axisLabelVisible: false }));
     series.macdH = charts.macd.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false });
-    series.macd = line(charts.macd, '#58a6ff'); series.macdS = line(charts.macd, '#f0883e');
+    series.macd = line(charts.macd, '#6b9cf0', { lineWidth: 1.5 }); series.macdS = line(charts.macd, '#e0894a', { lineWidth: 1.5 });
+    charts.main.subscribeCrosshairMove((p) => renderLegend(p && p.time != null ? p.time : null));
     // keep the three panes scrolled and zoomed together
     charts.main.timeScale().subscribeVisibleLogicalRangeChange(followMain);
     // Mouse on the main chart, read from the DOM (the chart's own click event drops a second click made quickly after the first):
@@ -93,7 +148,7 @@ window.Analysis = (() => {
       e.stopPropagation(); e.preventDefault();
       select(h.d.id);
       // the starting price and bar are fixed now: the price scale may rescale while the drawing moves
-      drag = { d: h.d, part: h.part, orig: JSON.parse(JSON.stringify(h.d)), p0: series.candle.coordinateToPrice(y), l0: logicalAt(x), moved: false };
+      drag = { d: h.d, part: h.part, orig: JSON.parse(JSON.stringify(h.d)), p0: series.price.coordinateToPrice(y), l0: logicalAt(x), moved: false };
       const move = (ev) => { const q = local(ev); drag.moved = true; applyDrag(q.x, q.y); };
       const up = () => {
         document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
@@ -122,59 +177,144 @@ window.Analysis = (() => {
     $('anEditRR').addEventListener('change', () => renderPanel());
     $('anEditDel').onclick = () => removeDrawing(selected);
 
+    $('anEditAlert').onclick = () => { const d = selDrawing(); if (d && d.type === 'hline') Watch.addAlert(state.symbol, null, d.price, d.name); };
+
     // controls
     const sym = $('anSym');
     sym.value = state.symbol;
-    sym.addEventListener('keydown', (e) => { if (e.key === 'Enter') { hideSugg(); load(Market.normalizeSymbol(sym.value)); } if (e.key === 'Escape') hideSugg(); });
-    sym.addEventListener('input', () => { clearTimeout(sym._t); sym._t = setTimeout(suggest, 250); });
-    sym.addEventListener('blur', () => setTimeout(hideSugg, 200));
+    sym.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        // a suggestion is used only if it was made for what is typed now (typing fast can beat the suggestions)
+        const box = $('anSugg'), pick = box.dataset.q === sym.value.trim() ? box.querySelector('.an-s.on[data-sym]') : null;
+        hideSugg();
+        if (pick && !Market.parseCommand(sym.value)) go({ fn: state.tab === 'company' || state.tab === 'news' ? state.tab : 'chart', symbol: pick.dataset.sym }); else runInput(sym.value);
+      }
+      if (e.key === 'Escape') { hideSugg(); sym.blur(); }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); moveSugg(e.key === 'ArrowDown' ? 1 : -1); }
+    });
+    sym.addEventListener('input', () => { clearTimeout(sym._t); sym._t = setTimeout(suggest, 200); });
+    sym.addEventListener('focus', () => { sym.select(); suggest(); });
+    sym.addEventListener('blur', () => setTimeout(() => { hideSugg(); sym.value = state.symbol; }, 200));
+    host.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));
+    host.querySelectorAll('[data-ptab]').forEach((b) => (b.onclick = () => setPanelTab(b.dataset.ptab)));
     host.querySelectorAll('[data-tf]').forEach((b) => (b.onclick = () => { state.tf = b.dataset.tf; save(); load(state.symbol); }));
+    host.querySelectorAll('[data-ctype]').forEach((b) => (b.onclick = () => { state.type = b.dataset.ctype; save(); makePriceSeries(); render(); }));
     host.querySelectorAll('[data-ind]').forEach((b) => (b.onclick = () => { state.ind[b.dataset.ind] = !state.ind[b.dataset.ind]; save(); render(); }));
-    host.querySelectorAll('[data-tool]').forEach((b) => (b.onclick = () => setTool(tool === b.dataset.tool ? null : b.dataset.tool)));
+    host.querySelectorAll('[data-tool]').forEach((b) => (b.onclick = () => setTool(tool === (b.dataset.tool || null) ? null : b.dataset.tool)));
+    $('anIndBtn').onclick = (e) => { e.stopPropagation(); $('anIndPop').classList.toggle('hide'); };
+    document.addEventListener('mousedown', (e) => { if (!e.target.closest('.an-menu')) { const p = $('anIndPop'); if (p) p.classList.add('hide'); } });
+    $('anAttr').onclick = () => Store.openUrl('https://www.tradingview.com/');
     $('anClear').onclick = () => {
       if (drawings.length && !confirm(`Remove all ${drawings.length} drawings on ${state.symbol}?`)) return;
-      drawings = []; pending = null; selected = null; saveDrawings(); redrawDrawings(); updateEditor(); renderPanel();
+      drawings = []; pending = null; selected = null; saveDrawings(); redrawDrawings(); updateEditor(); renderPanel(); renderDrawList();
     };
     $('anSave').onclick = saveToJournal;
     $('anAsk').onclick = askAI;
     built = true;
+    setTab(state.tab, true); setPanelTab(state.ptab);
+  }
+
+  /* ---------- Tabs and the command bar ---------- */
+  function setTab(t, quiet) {
+    if (!TABS.some(([k]) => k === t)) t = 'chart';
+    state.tab = t; save();
+    document.querySelectorAll('#analysis [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
+    document.querySelectorAll('#analysis .an-view').forEach((v) => v.classList.toggle('hide', v.dataset.view !== t));
+    if (t !== 'chart') setTool(null);
+    if (window.Desk) Desk.leave(t);
+    if (quiet || !window.Desk) return;
+    const el = document.querySelector(`#analysis .an-view[data-view="${t}"]`), cur = data && data.meta.symbol === state.symbol ? data : null;
+    if (t === 'company') Desk.company(el, state.symbol, cur);
+    if (t === 'news') Desk.news(el, state.newsScope === 'market' ? null : state.symbol, cur);
+    if (t === 'grid') Desk.grid(el);
+    if (t === 'macro') Desk.macro(el);
+    if (t === 'screener') Desk.screener(el);
+    if (t === 'corr') Desk.corr(el);
+  }
+  function setPanelTab(t) {
+    state.ptab = t; save();
+    document.querySelectorAll('#analysis [data-ptab]').forEach((b) => b.classList.toggle('on', b.dataset.ptab === t));
+    document.querySelectorAll('#analysis [data-pbody]').forEach((b) => b.classList.toggle('hide', b.dataset.pbody !== t));
+    if (t === 'stats' && panelDirty) renderPanel();
+    if (t === 'draw') renderDrawList();
+    if (t === 'watch' && window.Watch) Watch.mount($('anPWatch'));
+  }
+  // Enter in the command bar: a command ("AAPL DES", "ECO"), or a symbol for the current view
+  function runInput(text) {
+    const cmd = Market.parseCommand(text);
+    if (cmd) return go(cmd);
+    const sym = Market.normalizeSymbol(text); if (!sym) return;
+    go({ fn: state.tab === 'company' || state.tab === 'news' ? state.tab : 'chart', symbol: sym });
+  }
+  // Runs a command from the command bar or the Ctrl+K palette
+  async function go(cmd) {
+    if (!cmd) return;
+    const newSym = cmd.symbol && cmd.symbol !== state.symbol;
+    if (cmd.symbol) { state.symbol = cmd.symbol; save(); }
+    if (cmd.fn === 'news') state.newsScope = 'symbol';
+    if (cmd.fn === 'topnews') state.newsScope = 'market';
+    const tab = { chart: 'chart', alert: 'chart', watch: 'chart', company: 'company', news: 'news', topnews: 'news', macro: 'macro', screener: 'screener', corr: 'corr', grid: 'grid' }[cmd.fn] || 'chart';
+    state.tab = tab; save();
+    if (view !== 'analysis') setView('analysis'); // show() loads state.symbol and opens state.tab
+    else { if (newSym) load(state.symbol); setTab(tab); }
+    if (cmd.fn === 'watch' || cmd.fn === 'alert') setPanelTab('watch');
+    if (cmd.fn === 'alert' && cmd.price) Watch.addAlert(cmd.symbol, cmd.op, cmd.price);
+    if ($('anSym')) $('anSym').value = state.symbol;
   }
 
   /* ---------- Symbol search ---------- */
+  const HELP = [['GP', 'Chart', 'TSLA GP'], ['DES', 'Company: results and ratios', 'AAPL DES'], ['N', 'News', 'NVDA N'], ['ALRT', 'Price alert', 'BTC ALRT 70000'], ['W', 'Watchlist', 'W'], ['ECO', 'Macro: rates, economy', 'ECO'], ['EQS', 'Screener', 'EQS'], ['CORR', 'Correlation matrix', 'CORR'], ['GRID', 'Several charts', 'GRID'], ['TOP', 'Market news', 'TOP']];
   async function suggest() {
-    const q = $('anSym').value.trim(); if (q.length < 2) return hideSugg();
+    const box = $('anSugg'), q = $('anSym').value.trim();
+    const show = (html) => { box.dataset.q = q; box.innerHTML = html; box.classList.toggle('hide', !html); box.querySelectorAll('.an-s').forEach((el) => (el.onmousedown = (e) => { e.preventDefault(); hideSugg(); if (el.dataset.cmd) { $('anSym').value = el.dataset.cmd; runInput(el.dataset.cmd); } else go({ fn: state.tab === 'company' || state.tab === 'news' ? state.tab : 'chart', symbol: el.dataset.sym }); })); };
+    // empty or same as the current symbol: list the commands, Bloomberg style
+    if (!q || q === state.symbol) return show(`<div class="an-s-h">Commands · type a symbol, then a function</div>` + HELP.map(([k, l, ex]) => `<div class="an-s an-s-cmd" data-cmd="${esc(ex)}"><b>${k}</b><span>${esc(l)}</span><small>${esc(ex)}</small></div>`).join(''));
+    const cmd = Market.parseCommand(q);
+    if (cmd) { const t = HELP.find(([k]) => Market.parseCommand('X ' + k)?.fn === cmd.fn || Market.parseCommand(k)?.fn === cmd.fn); return show(`<div class="an-s an-s-cmd on" data-cmd="${esc(q)}"><b>↵</b><span>${esc(t ? t[1] : cmd.fn)}${cmd.symbol ? ' · ' + esc(cmd.symbol) : ''}</span><small>Enter</small></div>`); }
     let list = [];
     try { list = Market.parseYahooSearch(JSON.parse(await Store.market(Market.yahooSearchUrl(q)))); } catch (e) { /* search needs the desktop app */ }
+    if ($('anSym').value.trim() !== q) return; // the user kept typing
     const guess = Market.normalizeSymbol(q);
     if (guess && !list.some((x) => x.symbol === guess)) list.unshift({ symbol: guess, name: 'Open ' + guess, exchange: '', type: '' });
-    const box = $('anSugg');
-    box.innerHTML = list.slice(0, 8).map((x) => `<div class="an-s" data-sym="${esc(x.symbol)}"><b>${esc(x.symbol)}</b><span>${esc(x.name)}</span><small>${esc([x.type, x.exchange].filter(Boolean).join(' · '))}</small></div>`).join('');
-    box.classList.toggle('hide', !list.length);
-    box.querySelectorAll('.an-s').forEach((el) => (el.onmousedown = (e) => { e.preventDefault(); hideSugg(); load(el.dataset.sym); }));
+    show(list.slice(0, 8).map((x, i) => `<div class="an-s${i === 0 ? ' on' : ''}" data-sym="${esc(x.symbol)}"><b>${esc(x.symbol)}</b><span>${esc(x.name)}</span><small>${esc([x.type, x.exchange].filter(Boolean).join(' · '))}</small></div>`).join(''));
+  }
+  function moveSugg(dir) {
+    const items = [...$('anSugg').querySelectorAll('.an-s')]; if (!items.length) return;
+    const i = items.findIndex((x) => x.classList.contains('on')), n = Math.max(0, Math.min(items.length - 1, i + dir));
+    items.forEach((x, j) => x.classList.toggle('on', j === n));
+    if (items[n].dataset.cmd) $('anSym').value = items[n].dataset.cmd;
   }
   const hideSugg = () => { const b = $('anSugg'); if (b) b.classList.add('hide'); };
 
   /* ---------- Data ---------- */
   async function fetchSeries(sym, tfId) {
     const errors = [], kind = Market.kindOf(sym);
+    if (kind === 'stock' && dataKeys.polygon) { try { return Market.parsePolygon(JSON.parse(await Store.marketKeyed('polygon', Market.polygonUrl(sym, tfId))), sym); } catch (e) { errors.push('Polygon: ' + (e.message || e)); } }
     try { return Market.parseYahoo(JSON.parse(await Store.market(Market.yahooChartUrl(sym, tfId)))); } catch (e) { errors.push('Yahoo: ' + (e.message || e)); }
     if (kind === 'crypto') { try { return Market.parseBinance(JSON.parse(await Store.market(Market.binanceUrl(sym, tfId))), sym); } catch (e) { errors.push('Binance: ' + (e.message || e)); } }
     if (kind === 'fx' && Market.tf(tfId).interval === '1d') { try { return Market.parseFrankfurter(JSON.parse(await Store.market(Market.frankfurterUrl(sym, tfId))), sym); } catch (e) { errors.push('ECB: ' + (e.message || e)); } }
     if (!Store.desktop) return Market.demoSeries(sym, tfId);
     throw new Error(errors.join(' · '));
   }
-  async function load(sym) {
+  // soft: a refresh of the same market (keeps the zoom, the selection and the benchmark)
+  async function load(sym, soft) {
     if (!sym) return;
     const my = ++loading;
     state.symbol = sym; save();
-    $('anSym').value = sym;
+    if (document.activeElement !== $('anSym')) $('anSym').value = sym;
     document.querySelectorAll('#analysis [data-tf]').forEach((b) => b.classList.toggle('on', b.dataset.tf === state.tf));
-    $('anSource').textContent = 'Loading ' + sym + '…';
+    if (!soft) $('anSource').textContent = 'Loading ' + sym + '…';
     try {
       const d = await fetchSeries(sym, state.tf);
       if (my !== loading) return;
+      const kind = Market.kindOf(sym);
+      live = null;
+      if (kind === 'stock' && dataKeys.finnhub) Store.marketKeyed('finnhub', Market.finnhubQuoteUrl(sym)).then((t) => { if (my === loading) { live = Market.parseFinnhubQuote(JSON.parse(t)); renderQuote(); } }).catch(() => {});
+      if (soft && data && data.meta.symbol === d.meta.symbol) { data = d; render(false); return; }
       data = d; bench = null; drawings = loadDrawings(sym); pending = null; selected = null; updateEditor();
       render(true);
+      if (window.Watch) Watch.render();
+      if (state.tab === 'company' || state.tab === 'news') setTab(state.tab);
       const b = Market.benchmarkFor(Market.kindOf(sym));
       // beta and correlation only against real prices: a demo benchmark would give meaningless numbers
       const setBench = (x) => { if (my === loading) { bench = x && !x.demo ? x : false; renderPanel(); } };
@@ -186,15 +326,31 @@ window.Analysis = (() => {
   }
 
   /* ---------- Chart ---------- */
+  // The price series changes with the chart type; drawings are attached to it, so they are redrawn
+  function makePriceSeries() {
+    if (series.price) { priceLines.forEach((pl) => series.price.removePriceLine(pl)); priceLines = []; charts.main.removeSeries(series.price); }
+    const t = state.type, base = { priceLineVisible: true, priceLineWidth: 1, priceLineStyle: 2, lastValueVisible: true };
+    if (t === 'candles') series.price = charts.main.addCandlestickSeries(Object.assign({ upColor: COLORS.up, downColor: COLORS.down, borderVisible: false, wickUpColor: rgba(COLORS.up, 0.8), wickDownColor: rgba(COLORS.down, 0.8) }, base));
+    else if (t === 'bars') series.price = charts.main.addBarSeries(Object.assign({ upColor: COLORS.up, downColor: COLORS.down, thinBars: true }, base));
+    else if (t === 'line') series.price = charts.main.addLineSeries(Object.assign({ color: COLORS.up, lineWidth: 2, crosshairMarkerRadius: 3 }, base));
+    else series.price = charts.main.addAreaSeries(Object.assign({ lineColor: COLORS.up, topColor: rgba(COLORS.up, 0.2), bottomColor: rgba(COLORS.up, 0), lineWidth: 2, crosshairMarkerRadius: 3 }, base));
+    document.querySelectorAll('#analysis [data-ctype]').forEach((b) => b.classList.toggle('on', b.dataset.ctype === t));
+  }
   const lineData = (vals) => data.candles.map((k, i) => (vals[i] == null ? { time: k.time } : { time: k.time, value: vals[i] }));
   function render(fit) {
     if (!data) return;
     const c = data.candles, closes = c.map((k) => k.close), on = state.ind, intraday = Market.tf(state.tf).interval.endsWith('m');
     document.querySelectorAll('#analysis [data-ind]').forEach((b) => b.classList.toggle('on', !!on[b.dataset.ind]));
+    const nOn = IND.filter(([k]) => on[k]).length; $('anIndN').textContent = nOn ? nOn : '';
     Object.values(charts).forEach((ch) => ch.applyOptions({ timeScale: { timeVisible: intraday, secondsVisible: false } }));
-    series.candle.setData(c.map((k) => ({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close })));
+    const ohlc = state.type === 'candles' || state.type === 'bars';
+    series.price.setData(ohlc ? c.map((k) => ({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close })) : c.map((k) => ({ time: k.time, value: k.close })));
+    // line and area take the color of the move over the period, like a quote screen
+    const tone = closes[closes.length - 1] >= c[0].open ? COLORS.up : COLORS.down;
+    if (state.type === 'area') series.price.applyOptions({ lineColor: tone, topColor: rgba(tone, 0.2), bottomColor: rgba(tone, 0), priceLineColor: tone });
+    if (state.type === 'line') series.price.applyOptions({ color: tone, priceLineColor: tone });
     const hasVol = c.some((k) => k.volume > 0);
-    series.volume.setData(on.vol && hasVol ? c.map((k) => ({ time: k.time, value: k.volume, color: k.close >= k.open ? 'rgba(63,185,80,.35)' : 'rgba(248,81,73,.35)' })) : []);
+    series.volume.setData(on.vol && hasVol ? c.map((k) => ({ time: k.time, value: k.volume, color: k.close >= k.open ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.055)' })) : []);
     series.sma20.setData(on.sma20 ? lineData(Quant.sma(closes, 20)) : []);
     series.sma50.setData(on.sma50 ? lineData(Quant.sma(closes, 50)) : []);
     series.sma200.setData(on.sma200 ? lineData(Quant.sma(closes, 200)) : []);
@@ -213,28 +369,39 @@ window.Analysis = (() => {
     series.rsi.setData(on.rsi ? lineData(Quant.rsi(closes, 14)) : []);
     const m = Quant.macd(closes);
     series.macd.setData(on.macd ? lineData(m.macd) : []); series.macdS.setData(on.macd ? lineData(m.signal) : []);
-    series.macdH.setData(on.macd ? c.map((k, i) => (m.hist[i] == null ? { time: k.time } : { time: k.time, value: m.hist[i], color: m.hist[i] >= 0 ? 'rgba(63,185,80,.6)' : 'rgba(248,81,73,.6)' })) : []);
+    series.macdH.setData(on.macd ? c.map((k, i) => (m.hist[i] == null ? { time: k.time } : { time: k.time, value: m.hist[i], color: m.hist[i] >= 0 ? 'rgba(63,185,80,.45)' : 'rgba(248,81,73,.45)' })) : []);
     redrawDrawings();
     if (fit) { charts.main.timeScale().fitContent(); }
     // align the lower panes on the main chart once their size is known
     requestAnimationFrame(() => followMain(charts.main.timeScale().getVisibleLogicalRange()));
-    renderQuote();
-    $('anSource').innerHTML = `Source: ${esc(data.source)} · ${c.length} bars · ${esc(Market.tf(state.tf).interval)} · ${esc(data.meta.exchange || '')}${data.demo ? ' · <span class="msg-err">demo data</span>' : ''}`;
-    renderPanel();
+    renderQuote(); renderLegend(null);
+    $('anSource').innerHTML = `${esc(data.source)} · ${c.length} bars · ${esc(Market.tf(state.tf).interval)}${data.meta.exchange ? ' · ' + esc(data.meta.exchange) : ''}${data.demo ? ' · <span class="msg-err">demo data</span>' : ''}`;
+    panelDirty = true; renderPanel();
   }
   function followMain(range) { if (range) [charts.rsi, charts.macd].forEach((c) => c.timeScale().setVisibleLogicalRange(range)); }
   const medianStep = () => { const t = data.candles.map((k) => k.time), g = t.slice(1).map((x, i) => x - t[i]).sort((a, b) => a - b); return g[Math.floor(g.length / 2)] || 86400; };
   function renderQuote() {
-    // change over the displayed period, measured the same way for every source
-    const m = data.meta, last = data.candles[data.candles.length - 1].close, prev = data.candles[0].open, ch = last - prev, chp = prev ? ch / prev : 0;
-    $('anQuote').innerHTML = `<div class="an-name">${esc(m.name || m.symbol)} <small>${esc(m.symbol || '')}${m.currency ? ' · ' + esc(m.currency) : ''}</small></div>
-      <div class="an-price">${fmt(last)} <span style="color:${ch >= 0 ? 'var(--win)' : 'var(--loss)'}">${ch >= 0 ? '+' : ''}${fmt(ch)} (${sgn(chp)}) <small>${esc(state.tf)}</small></span></div>`;
+    if (!data) return;
+    // change over the displayed period, measured the same way for every source; a live quote (Finnhub) replaces the last price
+    const m = data.meta, lastBar = data.candles[data.candles.length - 1].close, last = live ? live.price : lastBar, prev = data.candles[0].open, ch = last - prev, chp = prev ? ch / prev : 0;
+    $('anQuote').innerHTML = `<div class="an-q-name"><b>${esc(Market.displayName ? Market.displayName(m.symbol || state.symbol) : m.symbol)}</b><span>${esc(m.name && m.name !== m.symbol ? m.name : m.symbol || '')}</span>${m.currency ? `<span>${esc(m.currency)}</span>` : ''}${live ? '<span class="an-live">● live · Finnhub</span>' : ''}</div>
+      <div class="an-q-px"><span class="an-q-last">${fmt(last)}</span><span class="an-q-chg ${ch >= 0 ? 'up' : 'dn'}">${ch >= 0 ? '+' : ''}${fmt(ch)} · ${sgn(chp)}</span><span class="an-q-tf">${esc(state.tf)}</span></div>`;
+  }
+  // O H L C of the bar under the mouse (or the last bar), top left of the chart
+  function renderLegend(time) {
+    const el = $('anLegend'); if (!el || !data) return;
+    const c = data.candles; let i = time == null ? c.length - 1 : idxOfTime(time);
+    if (i < 0 || i >= c.length) i = c.length - 1;
+    const k = c[i], prev = c[i - 1], ch = prev ? k.close / prev.close - 1 : null, intraday = Market.tf(state.tf).interval.endsWith('m');
+    const d = new Date(k.time * 1000).toLocaleString(LOCALE, intraday ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' } : { month: 'short', day: 'numeric', year: 'numeric' });
+    const v = (l, x) => `<span>${l} <b>${fmt(x)}</b></span>`;
+    el.innerHTML = `<span class="an-lg-d">${esc(d)}</span>` + (data.closeOnly ? v('C', k.close) : v('O', k.open) + v('H', k.high) + v('L', k.low) + v('C', k.close)) + (ch != null ? `<span class="${ch >= 0 ? 'up' : 'dn'}">${sgn(ch)}</span>` : '') + (k.volume ? `<span>Vol <b>${fmtBig(k.volume)}</b></span>` : '');
   }
 
   /* ---------- Drawing tools ---------- */
   function setTool(t) {
-    tool = t; pending = null;
-    document.querySelectorAll('#analysis [data-tool]').forEach((b) => b.classList.toggle('on', b.dataset.tool === t));
+    tool = t || null; pending = null;
+    document.querySelectorAll('#analysis [data-tool]').forEach((b) => b.classList.toggle('on', b.dataset.tool === (tool || '')));
     const info = TOOLS.find((x) => x[0] === t);
     $('anHint').textContent = info ? info[2] + ' · Esc to cancel' : '';
     $('anHint').classList.toggle('show', !!info);
@@ -249,7 +416,7 @@ window.Analysis = (() => {
   const add = (d) => { d.id = uid(); drawings.push(d); return d; };
   function onChartClick(param) {
     if (!tool || !data || !param.point) return;
-    const price = series.candle.coordinateToPrice(param.point.y);
+    const price = series.price.coordinateToPrice(param.point.y);
     const time = param.time || data.candles[data.candles.length - 1].time;
     if (price == null) return;
     if (tool === 'hline') return finish(add({ type: 'hline', price }));
@@ -283,10 +450,10 @@ window.Analysis = (() => {
   // a trend line is shown only if its points fall in the loaded bars, so a line drawn on daily bars does not stretch a 5-minute chart
   const trendVisible = (d) => { const c = data.candles, t0 = Math.min(d.a.time, d.b.time), t1 = Math.max(d.a.time, d.b.time); return d.a.time !== d.b.time && t0 >= c[0].time && t1 <= c[c.length - 1].time + 300 * medianStep(); };
   function redrawDrawings() {
-    priceLines.forEach((pl) => series.candle.removePriceLine(pl)); priceLines = [];
+    priceLines.forEach((pl) => series.price.removePriceLine(pl)); priceLines = [];
     trendSeries.forEach((s) => charts.main.removeSeries(s)); trendSeries = [];
     if (!data) return;
-    const pl = (price, color, title, style = 2, width = 1) => priceLines.push(series.candle.createPriceLine({ price, color, title, lineStyle: style, lineWidth: width, axisLabelVisible: true }));
+    const pl = (price, color, title, style = 2, width = 1) => priceLines.push(series.price.createPriceLine({ price, color, title, lineStyle: style, lineWidth: width, axisLabelVisible: true }));
     drawings.forEach((d) => {
       const sel = d.id === selected, w = sel ? 1 : 0, nm = d.name ? d.name.trim() : '';
       if (d.type === 'hline') pl(d.price, colorOf(d), nm, 0, 1 + w);
@@ -319,7 +486,7 @@ window.Analysis = (() => {
   // The drawing part under the mouse (closest one), or null
   function hitTest(x, y) {
     if (y > $('anMain').clientHeight - charts.main.timeScale().height()) return null; // on the time axis
-    const Y = (p) => series.candle.priceToCoordinate(p), X = (t) => charts.main.timeScale().timeToCoordinate(t);
+    const Y = (p) => series.price.priceToCoordinate(p), X = (t) => charts.main.timeScale().timeToCoordinate(t);
     let best = null;
     const consider = (dist, h) => { if (dist <= h.tol && (!best || dist < best.dist)) best = Object.assign(h, { dist }); };
     const level = (d, price, part) => { const yy = Y(price); if (yy != null) consider(Math.abs(y - yy), { d, part, cursor: 'ns', tol: 5 }); };
@@ -339,7 +506,7 @@ window.Analysis = (() => {
   }
   function applyDrag(x, y) {
     const { d, part, orig, p0, l0 } = drag;
-    const p = series.candle.coordinateToPrice(y);
+    const p = series.price.coordinateToPrice(y);
     if (p == null || p0 == null) return;
     const dp = p - p0;
     if (part === 'price') d.price = p;
@@ -378,6 +545,7 @@ window.Analysis = (() => {
     $('anEditC').style.display = d.type === 'hline' || d.type === 'trend' ? '' : 'none';
     $('anEditC').querySelectorAll('[data-c]').forEach((b) => b.classList.toggle('on', colorOf(d) === b.dataset.c));
     $('anEditRRw').style.display = d.type === 'position' ? '' : 'none';
+    $('anEditAlert').style.display = d.type === 'hline' ? '' : 'none';
     if (d.type === 'position' && document.activeElement !== $('anEditRR')) $('anEditRR').value = rrOf(d);
   }
   // What a drawing is, in one line (drawings list, AI summary)
@@ -389,7 +557,7 @@ window.Analysis = (() => {
   }
   function renderDrawList() {
     const box = $('anDl'); if (!box) return;
-    if (!drawings.length) { box.innerHTML = '<p class="empty">Use the tools above the chart to draw. Click a drawing to select it, drag it to move it.</p>'; return; }
+    if (!drawings.length) { box.innerHTML = '<p class="empty">Use the tools on the left of the chart to draw. Click a drawing to select it, drag it to move it.</p>'; return; }
     box.innerHTML = drawings.map((d) => `<div class="an-dl${d.id === selected ? ' on' : ''}" data-id="${d.id}">
         <i style="background:${d.type === 'position' ? (d.side === 'long' ? COLORS.up : COLORS.down) : d.type === 'fib' ? '#d29922' : colorOf(d)}"></i>
         <span><b>${esc(d.name || (d.type === 'position' ? (d.side === 'long' ? 'Long' : 'Short') : TYPE_NAME[d.type]))}</b><small>${esc(describe(d))}</small></span>
@@ -410,6 +578,9 @@ window.Analysis = (() => {
   /* ---------- Quant panel ---------- */
   function renderPanel() {
     if (!data) return;
+    // the quant panel is heavy (Monte Carlo): it is computed when its tab is open
+    if (state.ptab !== 'stats') { panelDirty = true; return; }
+    panelDirty = false;
     const c = data.candles, closes = c.map((k) => k.close), times = c.map((k) => k.time), kind = Market.kindOf(data.meta.symbol || state.symbol);
     const ppy = Quant.periodsPerYear(times, Market.tradingDays(kind)), r = Quant.logReturns(closes), last = closes[closes.length - 1];
     const vol = Quant.realizedVol(closes, ppy), pk = Quant.parkinsonVol(c, ppy), atrs = Quant.atr(c, 14), atr = atrs[atrs.length - 1];
@@ -437,7 +608,6 @@ window.Analysis = (() => {
     const daily = Market.tf(state.tf).interval === '1d', wd = daily ? Quant.weekdayReturns(c) : null;
 
     $('anPanel').innerHTML = `
-      ${sec('Drawings', '<div id="anDl"></div>')}
       ${sec('Snapshot', kv([['Last', fmt(last)], ['Period high / low', `${fmt(hi)} / ${fmt(lo)}`], ['Position in range', pct((last - lo) / (hi - lo || 1), 0)], ['Pivot (P · R1 · S1)', `${fmt(pv.p)} · ${fmt(pv.r1)} · ${fmt(pv.s1)}`]]))}
       ${sec('Volatility', kv([['Realized (annualized)', pct(vol, 1)], ['Parkinson (high-low)', data.closeOnly ? 'needs intraday highs and lows' : pct(pk, 1)], ['ATR 14', `${fmt(atr)} · ${pct(atr / last, 2)}`], ['Vol regime (20 bars)', cur20 ? `${Math.round(cur20.rank * 100)}th percentile` : '—']]) + coneSvg(cone), 'How much the price moves. Percentile = today vs its own history (vol cone).')}
       ${sec('Expected move ±1σ', kv([['Next bar', `±${fmt(em(1))} (${pct(em(1) / last)})`], ['5 bars', `±${fmt(em(5))} (${pct(em(5) / last)})`], ['20 bars', `±${fmt(em(20))} (${pct(em(20) / last)})`]]), 'About 68% of moves stay inside this range if volatility holds.')}
@@ -567,11 +737,38 @@ window.Analysis = (() => {
   function show() {
     if (!LC) { $('analysis').innerHTML = '<p class="msg-err">The chart library did not load.</p>'; return; }
     if (!built) build();
+    Store.dataKeys().then((k) => { dataKeys = k; }).catch(() => {});
     load(state.symbol);
+    setTab(state.tab); setPanelTab(state.ptab);
     clearInterval(refreshTimer);
-    // refresh the price every minute while the tab is open (live data only)
-    refreshTimer = setInterval(() => { if (view === 'analysis' && data && !data.demo && !document.hidden) load(state.symbol); }, 60000);
+    // refresh the price every minute while the chart is open (live data only), without moving the chart
+    refreshTimer = setInterval(() => { if (view === 'analysis' && state.tab === 'chart' && data && !data.demo && !document.hidden && !drag) load(state.symbol, true); }, 60000);
   }
-  function hide() { clearInterval(refreshTimer); if (built) setTool(null); }
-  return { show, hide, load };
+  function hide() { clearInterval(refreshTimer); if (built) setTool(null); if (window.Desk) Desk.leave(null); }
+
+  /* ---------- Shared with desk.js and watch.js ---------- */
+  // Daily closes for many markets: one Yahoo request per 20 symbols in the desktop app, else one per market (4 at a time)
+  async function fetchMany(symbols, range = '1y', onProgress) {
+    const out = {}, todo = [...new Set(symbols.filter(Boolean))];
+    const tick = () => onProgress && onProgress(Object.keys(out).length, todo.length);
+    if (Store.desktop) {
+      for (let i = 0; i < todo.length; i += 20) {
+        try { Object.assign(out, Market.parseYahooSpark(JSON.parse(await Store.market(Market.yahooSparkUrl(todo.slice(i, i + 20), range, '1d'))))); } catch (e) {}
+        tick();
+      }
+    }
+    const missing = todo.filter((x) => !out[x]), tfId = range === '1y' ? '1Y' : range === '5y' ? '5Y' : '3M';
+    let next = 0;
+    const worker = async () => {
+      while (next < missing.length) {
+        const x = missing[next++];
+        try { const d = await fetchSeries(x, tfId); out[x] = { candles: d.candles, demo: !!d.demo, prevClose: null }; } catch (e) {}
+        tick();
+      }
+    };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    return out;
+  }
+  const util = { fmt, pct, sgn, fmtBig, rgba, sparkSvg, fetchSeries, fetchMany, COLORS, keys: () => dataKeys, setKeys: (k) => { dataKeys = k; }, current: () => data };
+  return { show, hide, load, go, util };
 })();

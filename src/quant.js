@@ -95,10 +95,39 @@
   function correlation(a, b) { const n = Math.min(a.length, b.length); a = a.slice(-n); b = b.slice(-n); const ma = mean(a), mb = mean(b); let c = 0, va = 0, vb = 0; for (let i = 0; i < n; i++) { c += (a[i] - ma) * (b[i] - mb); va += (a[i] - ma) ** 2; vb += (b[i] - mb) ** 2; } return va && vb ? c / Math.sqrt(va * vb) : NaN; }
   function beta(asset, bench) { const n = Math.min(asset.length, bench.length); return linreg(bench.slice(-n), asset.slice(-n)).slope; }
   // Aligns two candle series on common timestamps and returns their log returns
-  function alignedReturns(a, b) {
-    const mb = new Map(b.map((k) => [k.time, k.close])), xa = [], xb = [];
-    a.forEach((k) => { if (mb.has(k.time)) { xa.push(k.close); xb.push(mb.get(k.time)); } });
+  // Returns of two series on their common bars; keyA / keyB map a bar time to the matching key (e.g. a calendar day)
+  function alignedReturns(a, b, keyA = (t) => t, keyB = keyA) {
+    const mb = new Map(b.map((k) => [keyB(k.time), k.close])), xa = [], xb = [];
+    a.forEach((k) => { const key = keyA(k.time); if (mb.has(key)) { xa.push(k.close); xb.push(mb.get(key)); } });
     return { a: logReturns(xa), b: logReturns(xb), n: xa.length };
+  }
+  // Correlation of returns for every pair: list = [{ sym, candles, key }] -> { syms, m (matrix), n (common bars) }
+  function correlationMatrix(list) {
+    const k = list.length, m = Array.from({ length: k }, () => new Array(k).fill(null)), n = Array.from({ length: k }, () => new Array(k).fill(0));
+    for (let i = 0; i < k; i++) {
+      m[i][i] = 1; n[i][i] = list[i].candles.length;
+      for (let j = i + 1; j < k; j++) {
+        const r = alignedReturns(list[i].candles, list[j].candles, list[i].key, list[j].key);
+        const c = r.n > 20 ? correlation(r.a, r.b) : null;
+        m[i][j] = m[j][i] = c; n[i][j] = n[j][i] = r.n;
+      }
+    }
+    return { syms: list.map((x) => x.sym), m, n };
+  }
+  // Screener numbers for one market from its daily closes
+  function metrics(candles, ppy = 252) {
+    const c = candles.map((k) => k.close), n = c.length, last = c[n - 1];
+    if (n < 2) return null;
+    const ago = (bars) => (n > bars ? last / c[n - 1 - bars] - 1 : null);
+    const y0 = new Date(candles[n - 1].time * 1000).getUTCFullYear();
+    const firstOfYear = candles.findIndex((k) => new Date(k.time * 1000).getUTCFullYear() === y0);
+    const base = firstOfYear > 0 ? c[firstOfYear - 1] : null;
+    const s200 = sma(c, 200)[n - 1], hi = Math.max(...c.slice(-252));
+    return {
+      last, chg1d: ago(1), chg1w: ago(5), chg1m: ago(21), chg3m: ago(63), ytd: base ? last / base - 1 : null,
+      vol: n > 22 ? realizedVol(c.slice(-22), ppy) : null, rsi: rsi(c, 14)[n - 1], vsSma200: s200 ? last / s200 - 1 : null,
+      fromHigh: last / hi - 1, z: zscore(c, 20),
+    };
   }
 
   /* ---------- Market structure ---------- */
@@ -166,7 +195,7 @@
   return {
     mean, std, quantile, sma, ema, rsi, macd, bollinger, atr, vwap,
     logReturns, realizedVol, parkinsonVol, skewness, kurtosis, maxDrawdown, sharpe, sortino, valueAtRisk, expectedShortfall,
-    zscore, autocorr, hurst, halfLife, linreg, correlation, beta, alignedReturns,
+    zscore, autocorr, hurst, halfLife, linreg, correlation, beta, alignedReturns, correlationMatrix, metrics,
     volumeProfile, fibLevels, pivots, expectedMove, volCone, monteCarlo, positionSize, kelly, periodsPerYear, weekdayReturns,
   };
 });

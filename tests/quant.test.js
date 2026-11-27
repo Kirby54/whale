@@ -111,3 +111,21 @@ test('periodsPerYear from timestamps', () => {
   const hourly = Array.from({ length: 48 }, (_, i) => i * 3600); // 24 bars per day
   near(Q.periodsPerYear(hourly, 365), 24 * 365);
 });
+
+test('aligned returns with day keys, correlation matrix', () => {
+  const day = 86400, A = [], B = [], C = [];
+  for (let i = 0; i < 60; i++) { const x = 100 * Math.exp(0.01 * Math.sin(i * 1.7) + i * 0.001); A.push({ time: i * day + 52200, close: x }); B.push({ time: i * day, close: x * 2 }); C.push({ time: i * day, close: 100 + (i % 2) }); }
+  const k = (t) => Math.floor(t / day);
+  assert.equal(Q.alignedReturns(A, B).n, 0, 'different stamps do not match without a key');
+  const r = Q.alignedReturns(A, B, k); assert.equal(r.n, 60);
+  const m = Q.correlationMatrix([{ sym: 'A', candles: A, key: k }, { sym: 'B', candles: B, key: k }, { sym: 'C', candles: C, key: k }]);
+  assert.deepEqual(m.syms, ['A', 'B', 'C']); near(m.m[0][1], 1, 1e-9); assert.equal(m.m[1][0], m.m[0][1]); assert.equal(m.m[2][2], 1);
+});
+
+test('screener metrics', () => {
+  const day = 86400, start = Date.parse('2025-06-02T14:30:00Z') / 1000;
+  const c = Array.from({ length: 300 }, (_, i) => ({ time: start + i * day, close: 100 + i }));
+  const x = Q.metrics(c);
+  near(x.chg1d, 399 / 398 - 1); near(x.chg1w, 399 / 394 - 1); assert.ok(x.vsSma200 > 0); near(x.fromHigh, 0); assert.equal(x.rsi, 100);
+  assert.ok(x.ytd > 0);
+});

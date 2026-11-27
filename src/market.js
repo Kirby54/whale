@@ -44,6 +44,20 @@
     return alias || sym.replace(/^\^/, '');
   }
 
+  // Readable names for lists and tiles ("^GSPC" -> "S&P 500", "EURUSD=X" -> "EUR/USD", "BTC-USD" -> "BTC")
+  const NAMES = {
+    '^GSPC': 'S&P 500', '^NDX': 'Nasdaq 100', '^IXIC': 'Nasdaq', '^DJI': 'Dow Jones', '^RUT': 'Russell 2000', '^GDAXI': 'DAX', '^FCHI': 'CAC 40',
+    '^FTSE': 'FTSE 100', '^STOXX50E': 'Euro Stoxx 50', '^N225': 'Nikkei 225', '^HSI': 'Hang Seng', '^VIX': 'VIX', '^TNX': 'US 10Y yield',
+    '^IRX': 'US 3M yield', '^FVX': 'US 5Y yield', '^TYX': 'US 30Y yield', 'GC=F': 'Gold', 'SI=F': 'Silver', 'HG=F': 'Copper', 'CL=F': 'Oil WTI',
+    'BZ=F': 'Brent', 'NG=F': 'Natural gas', 'ZC=F': 'Corn', 'ZW=F': 'Wheat', 'DX-Y.NYB': 'Dollar index',
+  };
+  function displayName(sym) {
+    if (NAMES[sym]) return NAMES[sym];
+    if (/=X$/.test(sym)) return sym.slice(0, 3) + '/' + sym.slice(3, 6);
+    if (/-(USD|EUR)$/.test(sym) && CRYPTO.includes(sym.split('-')[0])) return sym.split('-')[0];
+    return sym;
+  }
+
   /* ---------- Timeframes ---------- */
   const TIMEFRAMES = [
     { id: '1D', range: '1d', interval: '5m', days: 1 },
@@ -114,6 +128,234 @@
     return { candles, meta: { symbol: sym, name: `${sym.slice(0, 3)} / ${to}`, currency: to, exchange: 'ECB reference rates', type: 'CURRENCY', price: last.close, prevClose: candles.length > 1 ? candles[candles.length - 2].close : null }, source: 'ECB via Frankfurter (daily closes only)', closeOnly: true };
   }
 
+  /* ---------- Day key: aligns daily bars of different markets on the same calendar day ----------
+     Yahoo stamps daily bars at the session open (stocks ~14:30 UTC, crypto 00:00 UTC, futures ~04:00 UTC)
+     but forex at London midnight (23:00 UTC the day before in summer): +2 h puts every market on its own day. */
+  const dayKey = (time, kind) => new Date((time + (kind === 'fx' ? 7200 : 0)) * 1000).toISOString().slice(0, 10);
+
+  /* ---------- Command bar, Bloomberg style: "TSLA GP", "AAPL DES", "ECO" ---------- */
+  const FUNCTIONS = {
+    GP: 'chart', G: 'chart', CHART: 'chart', HP: 'chart',
+    DES: 'company', FA: 'company', CF: 'company', COMPANY: 'company',
+    N: 'news', CN: 'news', NEWS: 'news',
+    ALRT: 'alert', ALERT: 'alert',
+  };
+  const GLOBAL = {
+    W: 'watch', WATCH: 'watch', WL: 'watch',
+    ECO: 'macro', MACRO: 'macro', ECST: 'macro',
+    EQS: 'screener', SCREEN: 'screener', SCREENER: 'screener', MOST: 'screener',
+    CORR: 'corr', CORRELATION: 'corr',
+    GRID: 'grid', MULTI: 'grid', COMP: 'grid',
+    TOP: 'topnews', NEWS: 'topnews',
+  };
+  // Returns { fn, symbol?, op?, price? } or null when the text is not a command
+  function parseCommand(text) {
+    const parts = String(text || '').trim().replace(/<GO>$/i, '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return null;
+    const up = parts.map((p) => p.toUpperCase());
+    if (up.length === 1 && GLOBAL[up[0]]) return { fn: GLOBAL[up[0]] };
+    const fnAt = up.findIndex((p, i) => i > 0 && FUNCTIONS[p]);
+    if (fnAt > 0) {
+      const symbol = normalizeSymbol(parts.slice(0, fnAt).join(''));
+      const fn = FUNCTIONS[up[fnAt]];
+      if (fn === 'alert') {
+        const rest = up.slice(fnAt + 1).join(' ').match(/^([<>])?\s*([\d.,]+)$/);
+        if (!rest) return { fn, symbol };
+        return { fn, symbol, op: rest[1] || null, price: +rest[2].replace(/,/g, '') };
+      }
+      return { fn, symbol };
+    }
+    return null;
+  }
+  // Whether plain text looks like a market symbol worth offering a chart for ("tsla", "eurusd", "^GSPC", "gold")
+  const looksLikeSymbol = (text) => { const s = String(text || '').trim(); return /^[\^]?[A-Za-z0-9.=\-/&]{1,12}$/.test(s) && /[A-Za-z]/.test(s); };
+
+  /* ---------- Yahoo spark: closes for many symbols in one request (watchlist, screener) ---------- */
+  const yahooSparkUrl = (symbols, range = '1y', interval = '1d') => `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${symbols.map(encodeURIComponent).join(',')}&range=${range}&interval=${interval}`;
+  function parseYahooSpark(json) {
+    const out = {};
+    Object.keys(json || {}).forEach((sym) => {
+      const r = json[sym]; if (!r || !Array.isArray(r.timestamp) || !Array.isArray(r.close)) return;
+      const candles = [];
+      r.timestamp.forEach((t, i) => { const c = r.close[i]; if (typeof c === 'number' && isFinite(c) && (!candles.length || candles[candles.length - 1].time !== t)) candles.push({ time: t, open: c, high: c, low: c, close: c, volume: 0 }); });
+      if (candles.length) out[r.symbol || sym] = { candles, prevClose: r.chartPreviousClose ?? null };
+    });
+    return out;
+  }
+
+  /* ---------- SEC EDGAR: company filings of US-listed companies (free, no key) ---------- */
+  const secSearchUrl = (q) => `https://efts.sec.gov/LATEST/search-index?keysTyped=${encodeURIComponent(q)}`;
+  function parseSecSearch(json, ticker) {
+    const hits = ((json && json.hits && json.hits.hits) || []).map((h) => ({ cik: +h._id, name: String((h._source && h._source.entity) || '').replace(/\s*\([^)]*\)\s*$/, ''), tickers: String((h._source && h._source.tickers) || '').split(/[,\s]+/).filter(Boolean) }));
+    const t = String(ticker || '').toUpperCase().replace('-', '.');
+    return hits.find((h) => h.tickers.some((x) => x.toUpperCase() === t || x.toUpperCase().replace('-', '.') === t)) || null;
+  }
+  const secFactsUrl = (cik) => `https://data.sec.gov/api/xbrl/companyfacts/CIK${String(cik).padStart(10, '0')}.json`;
+  const DAY = 86400000;
+  // Turns the (very large) XBRL "company facts" into a few clean series: yearly and quarterly results, latest balance sheet
+  function parseSecFacts(json) {
+    const g = (json && json.facts && json.facts['us-gaap']) || {}, dei = (json && json.facts && json.facts.dei) || {};
+    const unitsOf = (c) => (c && c.units ? c.units[Object.keys(c.units)[0]] || [] : []);
+    // the concept with the most recent data among equivalent names (companies use different tags for revenue, etc.)
+    const pick = (names) => {
+      let best = null, bestEnd = '';
+      names.forEach((n) => { const arr = unitsOf(g[n]); const end = arr.reduce((m, x) => (x.end > m ? x.end : m), ''); if (arr.length && end > bestEnd) { best = arr; bestEnd = end; } });
+      return best || [];
+    };
+    const dur = (x) => (Date.parse(x.end) - Date.parse(x.start)) / DAY;
+    // one value per period end, from the latest filing
+    const byEnd = (arr, keep) => { const m = new Map(); arr.filter(keep).forEach((x) => { const o = m.get(x.end); if (!o || x.filed > o.filed) m.set(x.end, x); }); return [...m.values()].sort((a, b) => a.end.localeCompare(b.end)); };
+    const annual = (arr) => byEnd(arr, (x) => x.start && dur(x) > 340 && dur(x) < 380);
+    const quarterly = (arr) => byEnd(arr, (x) => x.start && dur(x) > 80 && dur(x) < 100);
+    const instant = (arr) => byEnd(arr, (x) => !x.start);
+    const C = {
+      revenue: pick(['RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenues', 'SalesRevenueNet', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'RevenuesNetOfInterestExpense']),
+      grossProfit: pick(['GrossProfit']),
+      opIncome: pick(['OperatingIncomeLoss']),
+      netIncome: pick(['NetIncomeLoss', 'ProfitLoss', 'NetIncomeLossAvailableToCommonStockholdersBasic']),
+      eps: pick(['EarningsPerShareDiluted', 'EarningsPerShareBasic']),
+      ocf: pick(['NetCashProvidedByUsedInOperatingActivities']),
+      capex: pick(['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAcquireProductiveAssets']),
+      assets: pick(['Assets']), liabilities: pick(['Liabilities']), equity: pick(['StockholdersEquity', 'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest']),
+      cash: pick(['CashAndCashEquivalentsAtCarryingValue', 'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents']),
+      debt: pick(['LongTermDebt', 'LongTermDebtNoncurrent']),
+    };
+    const series = (kind) => {
+      const keys = ['revenue', 'grossProfit', 'opIncome', 'netIncome', 'eps', 'ocf', 'capex'], rows = new Map();
+      keys.forEach((k) => kind(C[k]).forEach((x) => { const r = rows.get(x.end) || { end: x.end, fy: x.fy, fp: x.fp }; r[k] = x.val; rows.set(x.end, r); }));
+      return [...rows.values()].filter((r) => r.revenue != null || r.netIncome != null).sort((a, b) => a.end.localeCompare(b.end));
+    };
+    const last = (arr) => { const v = instant(arr); return v.length ? v[v.length - 1] : null; };
+    const so = unitsOf(dei.EntityCommonStockSharesOutstanding).slice().sort((a, b) => a.end.localeCompare(b.end));
+    const allYears = series(annual), allQuarters = series(quarterly);
+    // annual reports do not state the 4th quarter alone: it is the year minus its first three quarters
+    allYears.forEach((y) => {
+      const from = new Date(Date.parse(y.end) - 360 * DAY).toISOString().slice(0, 10);
+      const qs = allQuarters.filter((q) => q.end > from && q.end < y.end);
+      if (qs.length !== 3 || allQuarters.some((q) => q.end === y.end)) return;
+      const q4 = { end: y.end, fy: y.fy, fp: 'Q4', derived: true };
+      ['revenue', 'grossProfit', 'opIncome', 'netIncome', 'eps', 'ocf', 'capex'].forEach((k) => { if (y[k] != null && qs.every((q) => q[k] != null)) q4[k] = y[k] - qs.reduce((s, q) => s + q[k], 0); });
+      allQuarters.push(q4);
+    });
+    allQuarters.sort((a, b) => a.end.localeCompare(b.end));
+    const years = allYears.slice(-6), quarters = allQuarters.slice(-8);
+    // trailing twelve months from the last four quarters when they are consecutive, otherwise the last fiscal year
+    const q4 = quarters.slice(-4);
+    const consecutive = q4.length === 4 && (Date.parse(q4[3].end) - Date.parse(q4[0].end)) / DAY < 300;
+    const ttm = {};
+    ['revenue', 'netIncome', 'eps', 'opIncome', 'grossProfit'].forEach((k) => {
+      ttm[k] = consecutive && q4.every((q) => q[k] != null) ? q4.reduce((s, q) => s + q[k], 0) : years.length ? years[years.length - 1][k] ?? null : null;
+    });
+    const bal = (k) => { const x = last(C[k]); return x ? { value: x.val, end: x.end } : null; };
+    return {
+      name: json && json.entityName, cik: json && json.cik,
+      years, quarters, ttm, ttmFromQuarters: consecutive,
+      balance: { assets: bal('assets'), liabilities: bal('liabilities'), equity: bal('equity'), cash: bal('cash'), debt: bal('debt') },
+      shares: so.length ? so[so.length - 1].val : null,
+    };
+  }
+  // Ratios from the filings and the current price
+  function fundamentals(f, price) {
+    const v = (x) => (x ? x.value : null), r = (a, b) => (a != null && b ? a / b : null);
+    const y = f.years, ly = y[y.length - 1], py = y[y.length - 2];
+    const cap = f.shares && price ? f.shares * price : null;
+    return {
+      marketCap: cap,
+      pe: f.ttm.eps > 0 && price ? price / f.ttm.eps : null,
+      ps: r(cap, f.ttm.revenue),
+      grossMargin: r(f.ttm.grossProfit, f.ttm.revenue),
+      opMargin: r(f.ttm.opIncome, f.ttm.revenue),
+      netMargin: r(f.ttm.netIncome, f.ttm.revenue),
+      roe: r(f.ttm.netIncome, v(f.balance.equity)),
+      debtToEquity: r(v(f.balance.debt), v(f.balance.equity)),
+      revenueGrowth: ly && py && ly.revenue != null && py.revenue ? ly.revenue / py.revenue - 1 : null,
+      fcf: ly && ly.ocf != null ? ly.ocf - (ly.capex || 0) : null,
+    };
+  }
+
+  /* ---------- FRED (US economy): needs the user's own free key, added by the desktop app ---------- */
+  const MACRO = [
+    { id: 'CPIAUCSL', name: 'Inflation (CPI)', unit: '% y/y', yoy: true },
+    { id: 'CPILFESL', name: 'Core inflation', unit: '% y/y', yoy: true },
+    { id: 'UNRATE', name: 'Unemployment', unit: '%' },
+    { id: 'FEDFUNDS', name: 'Fed funds rate', unit: '%' },
+    { id: 'A191RL1Q225SBEA', name: 'GDP growth', unit: '% q/q ann.' },
+    { id: 'ICSA', name: 'Jobless claims', unit: 'k', scale: 0.001 },
+    { id: 'T10Y2Y', name: '10Y − 2Y spread', unit: 'pts' },
+    { id: 'BAMLH0A0HYM2', name: 'High-yield spread', unit: '%' },
+    { id: 'MORTGAGE30US', name: '30Y mortgage', unit: '%' },
+    { id: 'M2SL', name: 'Money supply M2', unit: '% y/y', yoy: true },
+  ];
+  // The key itself is never in this URL: the desktop app appends it
+  const fredUrl = (id, start) => `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(id)}&file_type=json&observation_start=${start}`;
+  function parseFred(json, opts = {}) {
+    let pts = ((json && json.observations) || []).filter((o) => o.value !== '.' && isFinite(+o.value)).map((o) => ({ date: o.date, value: +o.value * (opts.scale || 1) }));
+    if (opts.yoy) {
+      const byDate = new Map(pts.map((p) => [p.date, p.value]));
+      pts = pts.map((p) => { const d = new Date(p.date + 'T00:00:00Z'); d.setUTCFullYear(d.getUTCFullYear() - 1); const prev = byDate.get(d.toISOString().slice(0, 10)); return prev ? { date: p.date, value: (p.value / prev - 1) * 100 } : null; }).filter(Boolean);
+    }
+    return pts;
+  }
+  // Market-based macro that needs no key (Yahoo): the yield curve and risk gauges
+  const RATES = [{ sym: '^IRX', name: '3M' }, { sym: '^FVX', name: '5Y' }, { sym: '^TNX', name: '10Y' }, { sym: '^TYX', name: '30Y' }];
+  const GAUGES = [
+    { sym: '^VIX', name: 'VIX (fear gauge)' }, { sym: 'DX-Y.NYB', name: 'Dollar index' }, { sym: '^TNX', name: 'US 10Y yield' },
+    { sym: 'GC=F', name: 'Gold' }, { sym: 'CL=F', name: 'Oil (WTI)' }, { sym: 'HG=F', name: 'Copper' },
+    { sym: '^GSPC', name: 'S&P 500' }, { sym: 'BTC-USD', name: 'Bitcoin' },
+  ];
+
+  /* ---------- News (free RSS feeds) ---------- */
+  const yahooNewsUrl = (sym) => `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(sym)}&region=US&lang=en-US`;
+  const googleNewsUrl = (q) => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`;
+  const decode = (s) => String(s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/&amp;/g, '&');
+  const strip = (s) => decode(s).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  function parseRss(xml, feed) {
+    const items = [];
+    String(xml || '').replace(/<item\b[^>]*>([\s\S]*?)<\/item>/g, (_, body) => {
+      const tag = (t) => { const m = body.match(new RegExp(`<${t}\\b[^>]*>([\\s\\S]*?)<\\/${t}>`)); return m ? m[1] : ''; };
+      let title = strip(tag('title')), source = strip(tag('source'));
+      // Google News puts the outlet at the end of the title: "Headline - Outlet"
+      if (!source) { const m = title.match(/^(.*) - ([^-]{2,40})$/); if (m && feed === 'google') { title = m[1]; source = m[2]; } }
+      else if (title.endsWith(' - ' + source)) title = title.slice(0, -(source.length + 3));
+      const link = decode(tag('link')).trim(), time = Date.parse(decode(tag('pubDate')));
+      const desc = feed === 'google' ? '' : strip(tag('description'));
+      if (title && /^https:\/\//.test(link)) items.push({ title, link, source: source || (feed === 'yahoo' ? 'Yahoo Finance' : ''), time: isFinite(time) ? time : 0, desc });
+      return '';
+    });
+    return items;
+  }
+  // Merges feeds, newest first, without duplicate headlines
+  function mergeNews(lists, max = 60) {
+    const seen = new Set(), out = [];
+    lists.flat().sort((a, b) => b.time - a.time).forEach((n) => { const k = n.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 60); if (!seen.has(k)) { seen.add(k); out.push(n); } });
+    return out.slice(0, max);
+  }
+
+  /* ---------- Optional data with the user's own key (the desktop app appends the key) ---------- */
+  const POLY_TF = { '5m': [5, 'minute'], '15m': [15, 'minute'], '60m': [1, 'hour'], '1d': [1, 'day'], '1wk': [1, 'week'], '1mo': [1, 'month'] };
+  function polygonUrl(sym, tfId, now = Date.now()) {
+    const t = tf(tfId), [n, unit] = POLY_TF[t.interval], from = new Date(now - (t.days || 365 * 20) * DAY).toISOString().slice(0, 10), to = new Date(now).toISOString().slice(0, 10);
+    return `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(sym.replace('-', '.'))}/range/${n}/${unit}/${from}/${to}?adjusted=true&sort=asc&limit=50000`;
+  }
+  function parsePolygon(json, sym) {
+    const res = (json && json.results) || [];
+    if (!res.length) throw new Error((json && (json.error || json.message)) || 'No price data');
+    const candles = res.map((k) => ({ time: Math.floor(k.t / 1000), open: k.o, high: k.h, low: k.l, close: k.c, volume: k.v || 0 }));
+    const last = candles[candles.length - 1];
+    return { candles, meta: { symbol: sym, name: sym, currency: 'USD', exchange: 'Polygon.io', type: 'EQUITY', price: last.close, prevClose: null }, source: 'Polygon.io (your key)' };
+  }
+  const finnhubQuoteUrl = (sym) => `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(sym)}`;
+  const parseFinnhubQuote = (json) => (json && typeof json.c === 'number' && json.c > 0 ? { price: json.c, change: json.d, changePct: json.dp / 100, prevClose: json.pc, time: json.t } : null);
+
+  /* ---------- Lists ---------- */
+  const DEFAULT_WATCH = ['^GSPC', '^NDX', 'BTC-USD', 'ETH-USD', 'EURUSD=X', 'GC=F', 'CL=F', '^VIX', 'AAPL', 'NVDA', 'TSLA'];
+  const UNIVERSES = {
+    'US mega caps': ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA', 'BRK-B', 'AVGO', 'JPM', 'LLY', 'V', 'UNH', 'XOM', 'MA', 'COST', 'HD', 'PG', 'JNJ', 'NFLX', 'AMD', 'CRM', 'ORCL', 'BAC', 'KO', 'PEP', 'WMT', 'ADBE', 'CSCO', 'MCD', 'INTC', 'DIS', 'NKE', 'PLTR', 'UBER', 'COIN'],
+    Crypto: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'XRP-USD', 'BNB-USD', 'ADA-USD', 'DOGE-USD', 'AVAX-USD', 'DOT-USD', 'LINK-USD', 'LTC-USD', 'TRX-USD', 'ATOM-USD', 'UNI-USD', 'XLM-USD', 'NEAR-USD'],
+    Forex: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'USDCHF=X', 'AUDUSD=X', 'USDCAD=X', 'NZDUSD=X', 'EURGBP=X', 'EURJPY=X', 'GBPJPY=X', 'EURCHF=X', 'AUDJPY=X', 'USDMXN=X', 'USDZAR=X', 'USDTRY=X'],
+    'Indices & commodities': ['^GSPC', '^NDX', '^DJI', '^RUT', '^GDAXI', '^FCHI', '^FTSE', '^STOXX50E', '^N225', '^HSI', '^VIX', 'GC=F', 'SI=F', 'HG=F', 'CL=F', 'BZ=F', 'NG=F', 'ZC=F', 'ZW=F', 'DX-Y.NYB', '^TNX'],
+  };
+
   /* ---------- Demo data (browser mode only, clearly labeled) ---------- */
   function demoSeries(sym, tfId) {
     const t = tf(tfId); let x = [...sym].reduce((a, c) => a + c.charCodeAt(0), 11);
@@ -128,5 +370,14 @@
     return { candles, meta: { symbol: sym, name: sym + ' (demo data)', currency: '', exchange: '', type: '', price: p, prevClose: candles[n - 2].close }, source: 'Demo data: live prices work in the desktop app', demo: true };
   }
 
-  return { FX, CRYPTO, ALIASES, TIMEFRAMES, tf, normalizeSymbol, kindOf, tradingDays, benchmarkFor, journalName, yahooChartUrl, yahooSearchUrl, parseYahoo, parseYahooSearch, binanceUrl, parseBinance, frankfurterUrl, parseFrankfurter, demoSeries };
+  return {
+    FX, CRYPTO, ALIASES, TIMEFRAMES, tf, normalizeSymbol, kindOf, tradingDays, benchmarkFor, journalName, displayName, dayKey,
+    FUNCTIONS, GLOBAL, parseCommand, looksLikeSymbol, DEFAULT_WATCH, UNIVERSES,
+    yahooChartUrl, yahooSearchUrl, parseYahoo, parseYahooSearch, yahooSparkUrl, parseYahooSpark,
+    binanceUrl, parseBinance, frankfurterUrl, parseFrankfurter, demoSeries,
+    secSearchUrl, parseSecSearch, secFactsUrl, parseSecFacts, fundamentals,
+    MACRO, fredUrl, parseFred, RATES, GAUGES,
+    yahooNewsUrl, googleNewsUrl, parseRss, mergeNews,
+    polygonUrl, parsePolygon, finnhubQuoteUrl, parseFinnhubQuote,
+  };
 });

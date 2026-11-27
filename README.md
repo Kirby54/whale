@@ -60,22 +60,30 @@ Win rate, total and average R, profit factor, equity curve, and results by setup
   </tr>
 </table>
 
-### 📉 Analysis: any market, with a quant desk's toolkit
+### 📉 Analysis: a personal market terminal
 
-Type any symbol (`BTC`, `EURUSD`, `TSLA`, `gold`, `SPX`, `US30`…) and get a live chart with free data: **Yahoo Finance** (stocks, ETFs, indices, forex, futures, crypto), **Binance** (crypto) and the **ECB** (forex), no API key needed. Charts by [TradingView Lightweight Charts](https://github.com/tradingview/lightweight-charts).
+Type any symbol (`BTC`, `EURUSD`, `TSLA`, `gold`, `SPX`, `US30`…) or a command, Bloomberg style: `TSLA GP` (chart), `AAPL DES` (company), `NVDA N` (news), `ECO` (macro), `EQS` (screener), `CORR` (correlation), `GRID` (several charts), `BTC ALRT 70000` (price alert). Commands also work in the <kbd>Ctrl</kbd>+<kbd>K</kbd> palette.
 
-- **Chart:** candles from 5-minute to monthly bars, SMA 20/50/200, EMA 21, Bollinger bands, VWAP, volume, RSI and MACD.
-- **Drawing tools:** levels, trend lines, Fibonacci, long and short positions (entry, stop, target in R), and a measure tool. Click a drawing to select it, drag its lines or ends to move it, give it a name and a color, or delete it with <kbd>Delete</kbd>. Drawings are kept per symbol, and the position sizer follows the position you move.
-- **Quant panel**, the numbers trading desks look at:
-  - *Volatility:* realized and Parkinson volatility, ATR, a volatility cone (is today's volatility high or low for this market?), and the expected move.
-  - *Risk:* Value at Risk 95% and 99%, expected shortfall, max drawdown, Sharpe and Sortino ratios.
-  - *Behavior:* return distribution against a normal curve (skew, fat tails), Hurst exponent (trending or mean-reverting), autocorrelation, half-life of mean reversion, z-score.
-  - *Context:* beta and correlation against a benchmark (S&P 500, Bitcoin or the dollar index), volume profile with point of control and value area, pivots, weekday seasonality.
-  - *Scenarios:* a Monte Carlo projection cone drawn on the chart.
-  - *Sizing:* a position sizer from your account and risk %, with the Kelly fraction from your own journal.
-- **Into your journal:** save the chart and its numbers as a note, turn a planned position into a trade note, or send everything to your AI for a second opinion.
+- **Chart:** a clean area, line, candle or OHLC bar chart from 5-minute to monthly bars, with SMA, EMA, Bollinger bands, VWAP, volume, RSI, MACD and a Monte Carlo cone, plus O/H/L/C under the mouse.
+- **Drawing tools:** levels, trend lines, Fibonacci, long and short positions (entry, stop, target in R), and a measure tool. Click a drawing to select it, drag its lines or ends to move it, name it, color it, set an alert on a level, or delete it with <kbd>Delete</kbd>.
+- **Watchlist and price alerts:** your markets with their daily move and a sparkline; alerts are checked every minute while Whale is open (sound, on-screen and system notification).
+- **Stats panel**, the numbers trading desks look at: realized and Parkinson volatility, volatility cone, expected move, Value at Risk, expected shortfall, drawdown, Sharpe, Sortino, return distribution, Hurst exponent, mean-reversion half-life, beta and correlation to a benchmark, volume profile, pivots, seasonality, and a position sizer with the Kelly fraction from your own journal.
+- **Company:** results, margins, valuation (P/E, P/S, market cap), balance sheet and cash flow of US-listed companies, from their official SEC filings.
+- **News:** headlines for a market or for the whole market, opened in your browser.
+- **Macro:** the US yield curve, the 10Y−3M spread, VIX, dollar, gold, oil, copper; and the US economy (inflation, jobs, Fed rate, GDP, credit spreads) with your free FRED key.
+- **Screener and correlation:** sort and filter mega caps, crypto, forex, indices or your watchlist by move, volatility, RSI or trend; see which markets move together and which diversify.
+- **Into your journal:** save the chart and its numbers as a note, turn a planned position into a trade note, or send everything to your AI.
 
-<p align="center"><img src="docs/screenshots/analysis.png" alt="The Analysis tab: live BTC chart with Fibonacci, a planned long and the quant panel" width="100%"></p>
+**Data, free by default:** Yahoo Finance, Binance, the ECB, SEC EDGAR and Google News, no account needed. In **More → Data sources** you can add your own keys for FRED (free), Polygon.io and Finnhub; keys stay in the Windows Credential Manager and are only sent to their own provider. Free data can be delayed; nothing in Whale is investment advice.
+
+<p align="center"><img src="docs/screenshots/analysis.png" alt="The Analysis tab: a minimal live BTC chart with a level, a planned long and the watchlist" width="100%"></p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/company.png" alt="Company view: Apple's results and ratios from SEC filings"></td>
+    <td width="50%"><img src="docs/screenshots/screener.png" alt="Screener of US mega caps sorted by daily move"></td>
+  </tr>
+</table>
 
 ### 🎯 Setups, explained with charts
 
@@ -170,12 +178,12 @@ npm test         # run the tests
 
 | Folder | Contents |
 |---|---|
-| `src/` | The interface, no framework: `app.js` (core), `core.js` (pure, tested logic), `graph.js` (3D brain), `ai.js` and `aipanel.js` (AI), `setups.js`, `analysis.js` (Analysis tab), `quant.js` (tested quant toolkit), `market.js` (market data sources), `import.js`, `views.js`, `ui.js` |
+| `src/` | The interface, no framework: `app.js` (core), `core.js` (pure, tested logic), `graph.js` (3D brain), `ai.js` and `aipanel.js` (AI), `setups.js`, `analysis.js` (Analysis tab), `watch.js` (watchlist and alerts), `desk.js` (company, news, macro, screener, correlation), `quant.js` (tested quant toolkit), `market.js` (data sources and commands, tested), `import.js`, `views.js`, `ui.js` |
 | `editor/` | Editor source (CodeMirror 6), bundled by esbuild into `src/vendor/editor.bundle.js` |
-| `src-tauri/` | The Rust side: vault files, settings, import, AI calls and market data (limited to the allowed sources) |
+| `src-tauri/` | The Rust side: vault files, settings, import, AI calls, market data (limited to the allowed sources) and your data keys |
 | `tests/` | Logic tests (`npm test`); Rust tests with `cargo test` in `src-tauri/` |
 | `assets/` | Logo options (the official icon is `a-ocean-gem`) and generated icons |
-| `docs/screenshots/` | README screenshots, regenerated with `tools/screenshots.ps1` |
+| `docs/screenshots/` | README screenshots, regenerated with `tools/screenshots.ps1` (`-Live` with `python tools/relay.py` for real market data) |
 | `.github/workflows/release.yml` | Builds the installer and publishes a release when a `v*` tag is pushed |
 
 Opening `src/index.html` in a browser also works: notes are then kept in the browser, which is handy for working on the interface.
@@ -186,7 +194,8 @@ Opening `src/index.html` in a browser also works: notes are then kept in the bro
 - [x] Safe writes and conflict detection when a note is edited elsewhere
 - [x] Notes placed by meaning in the brain (local TF-IDF similarity + links)
 - [x] Setups tab and Analysis tab (live charts, drawing tools, quant panel)
-- [ ] Price alerts and a watchlist in the Analysis tab
+- [x] Market terminal: command bar, watchlist and alerts, company filings, news, macro, screener, correlation
+- [ ] Options chains and implied volatility
 - [ ] Optional AI embeddings for even better placement
 - [ ] Editable properties form, code highlighting and tables in the editor
 - [ ] macOS and Linux builds

@@ -464,40 +464,164 @@ fn load_settings(app: &tauri::AppHandle) -> (Settings, bool) {
 /* ---------- Market data (Analysis tab) ---------- */
 
 /// Free market data sources the Analysis tab may read (no API key, public endpoints only).
-const MARKET_HOSTS: [&str; 5] = [
+const MARKET_HOSTS: [&str; 9] = [
     "query1.finance.yahoo.com",
     "query2.finance.yahoo.com",
     "api.binance.com",
     "data-api.binance.vision",
     "api.frankfurter.dev",
+    "efts.sec.gov",           // SEC EDGAR: company search
+    "data.sec.gov",           // SEC EDGAR: company filings
+    "feeds.finance.yahoo.com", // news
+    "news.google.com",        // news
+];
+/// SEC EDGAR asks automated tools to say what they are instead of posing as a browser.
+const SEC_HOSTS: [&str; 2] = ["efts.sec.gov", "data.sec.gov"];
+
+/// Optional providers that need the user's own key: (name, host, query parameter that carries the key).
+const KEYED: [(&str, &str, &str); 3] = [
+    ("fred", "api.stlouisfed.org", "api_key"),
+    ("polygon", "api.polygon.io", "apiKey"),
+    ("finnhub", "finnhub.io", "token"),
 ];
 
-/// Whether a URL points to one of the allowed market data sources over HTTPS.
-fn market_url_allowed(url: &str) -> bool {
+fn https_host(url: &str) -> Option<String> {
     reqwest::Url::parse(url)
-        .map(|u| u.scheme() == "https" && u.host_str().map(|h| MARKET_HOSTS.contains(&h)).unwrap_or(false))
-        .unwrap_or(false)
+        .ok()
+        .filter(|u| u.scheme() == "https")
+        .and_then(|u| u.host_str().map(str::to_string))
 }
 
-/// Downloads market data (prices, symbol search) from an allowed public source and returns the body.
+/// Whether a URL points to one of the allowed free data sources over HTTPS.
+fn market_url_allowed(url: &str) -> bool {
+    https_host(url).map(|h| MARKET_HOSTS.contains(&h.as_str())).unwrap_or(false)
+}
+
+/// GET a data URL and return the body. Errors never repeat the URL (it may carry the user's key).
+async fn fetch_text(url: &str) -> Result<String, String> {
+    let host = https_host(url).unwrap_or_default();
+    let agent = if SEC_HOSTS.contains(&host.as_str()) {
+        "Whale/0.5 (open-source trading journal)"
+    } else {
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Safari/537.36 Whale"
+    };
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(25))
+        .user_agent(agent)
+        .build()
+        .map_err(err)?;
+    let res = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("Could not reach the data source: {}", e.without_url()))?;
+    let status = res.status();
+    let body = res.text().await.map_err(|e| e.without_url().to_string())?;
+    if !status.is_success() {
+        return Err(format!("Data source error {}", status.as_u16()));
+    }
+    Ok(body)
+}
+
+/// Downloads market data, filings or news from an allowed public source and returns the body.
 /// Done on the Rust side because these sites do not allow requests from inside the app's web view.
 #[tauri::command]
 async fn market_get(url: String) -> Result<String, String> {
     if !market_url_allowed(&url) {
         return Err("This data source is not allowed".into());
     }
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(20))
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Safari/537.36 Whale")
-        .build()
-        .map_err(err)?;
-    let res = client.get(&url).send().await.map_err(|e| format!("Could not reach the data source: {e}"))?;
-    let status = res.status();
-    let body = res.text().await.map_err(err)?;
-    if !status.is_success() {
-        return Err(format!("Data source error {}", status.as_u16()));
+    fetch_text(&url).await
+}
+
+/* Keys for optional data providers (FRED, Polygon, Finnhub): the user's own keys,
+   kept in the system key store only, never sent to the interface. */
+fn data_key_entry(provider: &str) -> Option<keyring::Entry> {
+    keyring::Entry::new(KEY_SERVICE, &format!("data-key-{provider}")).ok()
+}
+fn data_key_get(provider: &str) -> Option<String> {
+    data_key_entry(provider)?.get_password().ok().filter(|k| !k.trim().is_empty())
+}
+fn keyed_provider(name: &str) -> Option<(&'static str, &'static str, &'static str)> {
+    KEYED.iter().copied().find(|(n, _, _)| *n == name)
+}
+
+/// Adds the key to a URL, only if the URL belongs to that provider.
+fn with_key(provider: &str, url: &str, key: &str) -> Result<String, String> {
+    let (_, host, param) = keyed_provider(provider).ok_or("Unknown data provider")?;
+    let mut u = reqwest::Url::parse(url).map_err(|_| "Not a web address".to_string())?;
+    if u.scheme() != "https" || u.host_str() != Some(host) {
+        return Err("This address does not belong to that provider".into());
     }
-    Ok(body)
+    u.query_pairs_mut().append_pair(param, key);
+    Ok(u.to_string())
+}
+
+#[derive(Serialize)]
+struct DataKeys {
+    fred: bool,
+    polygon: bool,
+    finnhub: bool,
+}
+
+/// Which optional providers have a key (never the keys themselves).
+#[tauri::command]
+fn data_keys() -> DataKeys {
+    DataKeys {
+        fred: data_key_get("fred").is_some(),
+        polygon: data_key_get("polygon").is_some(),
+        finnhub: data_key_get("finnhub").is_some(),
+    }
+}
+
+#[tauri::command]
+fn set_data_key(provider: String, key: String) -> Result<DataKeys, String> {
+    keyed_provider(&provider).ok_or("Unknown data provider")?;
+    let key = key.trim();
+    if key.is_empty() || key.len() > 200 || !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return Err("This does not look like an API key".into());
+    }
+    let entry = data_key_entry(&provider).ok_or("The system key store is not available")?;
+    entry.set_password(key).map_err(err)?;
+    if data_key_get(&provider).as_deref() != Some(key) {
+        return Err("The key could not be saved in the system key store".into());
+    }
+    Ok(data_keys())
+}
+
+#[tauri::command]
+fn forget_data_key(provider: String) -> Result<DataKeys, String> {
+    keyed_provider(&provider).ok_or("Unknown data provider")?;
+    if let Some(e) = data_key_entry(&provider) {
+        let _ = e.delete_credential();
+    }
+    Ok(data_keys())
+}
+
+/// Downloads from an optional provider with the user's key added here, on the Rust side.
+#[tauri::command]
+async fn market_get_keyed(provider: String, url: String) -> Result<String, String> {
+    let key = data_key_get(&provider).ok_or_else(|| format!("No {provider} key yet: add yours in Data sources"))?;
+    let full = with_key(&provider, &url, &key)?;
+    fetch_text(&full).await
+}
+
+/// Opens a web page (a news article, a provider's sign-up page) in the default browser. https only.
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    let u = reqwest::Url::parse(&url).map_err(|_| "Not a web address".to_string())?;
+    if u.scheme() != "https" {
+        return Err("Only https pages can be opened".into());
+    }
+    #[cfg(target_os = "windows")]
+    std::process::Command::new("rundll32")
+        .args(["url.dll,FileProtocolHandler", u.as_str()])
+        .spawn()
+        .map_err(err)?;
+    #[cfg(target_os = "macos")]
+    std::process::Command::new("open").arg(u.as_str()).spawn().map_err(err)?;
+    #[cfg(all(unix, not(target_os = "macos")))]
+    std::process::Command::new("xdg-open").arg(u.as_str()).spawn().map_err(err)?;
+    Ok(())
 }
 
 /// Sends a request to the chosen AI provider and returns the raw JSON answer.
@@ -574,7 +698,12 @@ pub fn run() {
             save_settings,
             forget_key,
             ai_request,
-            market_get
+            market_get,
+            market_get_keyed,
+            data_keys,
+            set_data_key,
+            forget_data_key,
+            open_url
         ])
         .run(tauri::generate_context!())
         .expect("error while starting Whale");
@@ -607,6 +736,20 @@ mod tests {
         assert!(!market_url_allowed("https://example.com/steal"));
         assert!(!market_url_allowed("https://query1.finance.yahoo.com.evil.com/x"));
         assert!(!market_url_allowed("not a url"));
+        assert!(market_url_allowed("https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"));
+        assert!(market_url_allowed("https://news.google.com/rss/search?q=TSLA"));
+        assert!(!market_url_allowed("https://api.polygon.io/v2/aggs/ticker/AAPL"), "keyed providers go through market_get_keyed");
+    }
+
+    #[test]
+    fn keys_are_only_added_to_their_own_provider() {
+        let u = with_key("fred", "https://api.stlouisfed.org/fred/series/observations?series_id=UNRATE", "abc123").unwrap();
+        assert!(u.ends_with("&api_key=abc123"), "{u}");
+        assert!(with_key("fred", "https://evil.example.com/?x=1", "abc123").is_err());
+        assert!(with_key("fred", "https://api.polygon.io/v2/aggs", "abc123").is_err(), "a key never goes to another provider");
+        assert!(with_key("fred", "http://api.stlouisfed.org/fred", "abc123").is_err(), "https only");
+        assert!(with_key("nope", "https://api.stlouisfed.org/fred", "abc123").is_err());
+        assert!(with_key("finnhub", "https://finnhub.io/api/v1/quote?symbol=AAPL", "k").unwrap().ends_with("&token=k"));
     }
 
     #[test]

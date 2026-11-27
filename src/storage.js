@@ -27,6 +27,12 @@
       ai: (body) => invoke('ai_request', { body }),
       // Market data from allowed public sources (Yahoo Finance, Binance, Frankfurter), fetched by the Rust side
       market: (url) => invoke('market_get', { url }),
+      // Optional providers with the user's own key: the key stays on the Rust side, which adds it to the request
+      marketKeyed: (provider, url) => invoke('market_get_keyed', { provider, url }),
+      dataKeys: () => invoke('data_keys'),
+      setDataKey: (provider, key) => invoke('set_data_key', { provider, key }),
+      forgetDataKey: (provider) => invoke('forget_data_key', { provider }),
+      openUrl: (url) => invoke('open_url', { url }),
     };
     return;
   }
@@ -58,5 +64,10 @@
     ai: async () => { throw new Error('The AI works in the desktop app (not in the browser).'); },
     // In a plain browser most sources refuse direct requests (CORS); Binance and Frankfurter allow them
     market: async (url) => { const r = await fetch(url); if (!r.ok) throw new Error('Data source error ' + r.status); return r.text(); },
+    marketKeyed: async () => { throw new Error('Your own data keys work in the desktop app'); },
+    dataKeys: async () => ({ fred: false, polygon: false, finnhub: false }),
+    setDataKey: async () => { throw new Error('Your own data keys work in the desktop app'); },
+    forgetDataKey: async () => ({ fred: false, polygon: false, finnhub: false }),
+    openUrl: async (url) => { if (/^https:\/\//.test(url)) window.open(url, '_blank', 'noopener'); },
   };
 })();
