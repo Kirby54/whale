@@ -220,3 +220,34 @@ test('layout3d: linked items end up closer, deterministic, within [-1, 1]', () =
   assert.deepEqual(Core.layout3d(6, edges, { seed: 3 }), P);
   assert.ok(P.every((p) => p.every((x) => x >= -1 && x <= 1)));
 });
+
+test('setupTemplate: recognizes the pattern from the name or text', () => {
+  assert.equal(Core.setupTemplate('Breakout'), 'breakout');
+  assert.equal(Core.setupTemplate('Cassure du range'), 'breakout');
+  assert.equal(Core.setupTemplate('Pullback'), 'pullback');
+  assert.equal(Core.setupTemplate('EMA bounce'), 'pullback');
+  assert.equal(Core.setupTemplate('Double bottom'), 'reversal');
+  assert.equal(Core.setupTemplate('Mean reversion'), 'range');
+  assert.equal(Core.setupTemplate('My secret sauce'), 'generic');
+});
+
+test('setupSections: description and rules of a setup note', () => {
+  const { description, rules } = Core.setupSections('# Breakout\n\nBreak of a resistance with volume.\n\n## Rules\n- Wait for the close\n- [x] Volume > 1.5x\n1. Stop below the swing low\n\nSee also [[Pullback]].');
+  assert.equal(description, 'Break of a resistance with volume.');
+  assert.deepEqual(rules, ['Wait for the close', 'Volume > 1.5x', 'Stop below the swing low']);
+});
+
+test('tradeGeometry: long, short, side inferred, incomplete', () => {
+  assert.deepEqual(Core.tradeGeometry({ entry: '100', stop: '98', exit: '104', side: 'LONG' }), { entry: 100, stop: 98, exit: 104, side: 'LONG', risk: 2, r: 2 });
+  assert.equal(Core.tradeGeometry({ entry: '1,0850', stop: '1,0870', exit: '1,0810', side: 'SHORT' }).r, 2);
+  assert.equal(Core.tradeGeometry({ entry: 262, stop: 265, exit: 257.5 }).side, 'SHORT');
+  assert.equal(Core.tradeGeometry({ entry: 100, stop: 98 }).r, null);
+  assert.equal(Core.tradeGeometry({ entry: 100, stop: '' }), null);
+});
+
+test('rBuckets: histogram of results in R', () => {
+  assert.deepEqual(Core.rBuckets([-1, -1, 0.5, 1.9, 3]), [
+    { from: -1, to: 0, count: 2 }, { from: 0, to: 1, count: 1 }, { from: 1, to: 2, count: 1 }, { from: 2, to: 3, count: 0 }, { from: 3, to: 4, count: 1 },
+  ]);
+  assert.deepEqual(Core.rBuckets([]), []);
+});

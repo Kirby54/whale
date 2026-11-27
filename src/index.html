@@ -26,6 +26,7 @@
     <div class="navlinks">
       <button class="nl" id="btnGraph">Brain</button>
       <button class="nl" id="btnNotes">Notes</button>
+      <button class="nl" id="btnSetups">Setups</button>
       <button class="nl" id="btnNew">Write</button>
     </div>
     <div class="navlinks">
@@ -64,6 +65,7 @@
       <section class="view on" id="noteview">
         <div id="notecol">
           <input id="title" spellcheck="false">
+          <div id="tradecard"></div>
           <div id="reader"></div>
           <div id="editorhost"></div>
         </div>
@@ -76,6 +78,7 @@
         <div id="ghistwrap"><canvas id="ghist"></canvas><div id="ghistlabel"></div></div>
       </section>
       <section class="view" id="dashview"><div id="dash"></div></section>
+      <section class="view scrollv" id="setupsview"><div class="page wide" id="setups"></div></section>
       <section class="view scrollv" id="timelineview"><div class="page" id="timeline"></div></section>
       <section class="view scrollv" id="tableview"><div class="page wide" id="tradetable"></div></section>
       <section class="view" id="askview">
@@ -124,6 +127,7 @@
 <script src="ai.js"></script>
 <script src="import.js"></script>
 <script src="views.js"></script>
+<script src="setups.js"></script>
 <script src="aipanel.js"></script>
 <script src="ui.js"></script>
 </body>

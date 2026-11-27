@@ -254,6 +254,7 @@ function renderNote() {
   $('editorhost').style.display = editing ? 'block' : 'none';
   $('reader').style.display = editing ? 'none' : 'block';
   $('btnMode').textContent = editing ? 'Read' : 'Edit';
+  $('tradecard').innerHTML = p.type === 'trade' ? Setups.tradeCard(p, cur) : '';
   if (editing) {
     const ed = getEditor();
     if (edNote !== cur || ed.getDoc() !== notes[cur].content) { ed.setDoc(notes[cur].content); edNote = cur; }
@@ -306,7 +307,7 @@ function getEditor() {
     onChange(text) {
       if (!cur || edNote !== cur) return;
       notes[cur].content = text; queueWrite(cur);
-      clearTimeout(linkTimer); linkTimer = setTimeout(() => { renderTree(); renderLinks(parse(cur)); }, 300);
+      clearTimeout(linkTimer); linkTimer = setTimeout(() => { renderTree(); const p = parse(cur); renderLinks(p); $('tradecard').innerHTML = p.type === 'trade' ? Setups.tradeCard(p, cur) : ''; }, 300);
     },
     getNoteNames: () => Object.keys(notes).filter((n) => n !== cur),
     describeNote: (n) => dirOf(notes[n].path),
@@ -329,7 +330,7 @@ async function open(n) {
   }
   cur = n; setView('note'); renderTree();
 }
-const VIEWS = { note: 'btnNotes', graph: 'btnGraph', dash: 'btnDash', timeline: 'btnTimeline', table: 'btnTable', ask: 'btnAsk' };
+const VIEWS = { note: 'btnNotes', graph: 'btnGraph', dash: 'btnDash', timeline: 'btnTimeline', table: 'btnTable', ask: 'btnAsk', setups: 'btnSetups' };
 function setView(v) {
   view = v;
   Object.keys(VIEWS).forEach((k) => { $(k + 'view').classList.toggle('on', k === v); $(VIEWS[k]).classList.toggle('on', k === v); });
@@ -343,6 +344,7 @@ function setView(v) {
   if (v === 'dash') { $('crumb').innerHTML = '<b>Dashboard</b>'; renderDash(); }
   if (v === 'timeline') { $('crumb').innerHTML = '<b>Timeline</b> · all your notes over time'; Views.timeline(); }
   if (v === 'table') { $('crumb').innerHTML = '<b>Trades table</b>'; Views.table(); }
+  if (v === 'setups') { $('crumb').innerHTML = '<b>Setups</b> · how each setup works and how it performs'; Setups.show(); }
   if (v === 'ask') { $('crumb').innerHTML = '<b>Ask</b> · ask your journal a question'; AI.showAsk(); }
   if (v === 'note') renderNote();
 }
@@ -444,6 +446,7 @@ $('btnGraph').onclick = () => setView('graph');
 $('btnDash').onclick = () => setView('dash');
 $('btnTimeline').onclick = () => setView('timeline');
 $('btnTable').onclick = () => setView('table');
+$('btnSetups').onclick = () => setView('setups');
 $('btnAsk').onclick = () => setView('ask');
 $('btnImport').onclick = () => Importer.open();
 $('btnSettings').onclick = () => AI.openSettings();

@@ -347,6 +347,51 @@
     return R;
   }
 
+
+  /* ---------- Setups ---------- */
+  // Which chart pattern best illustrates a setup, from its name and description
+  function setupTemplate(name, text) {
+    const t = (String(name || '') + ' ' + String(text || '')).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    if (/\b(breakout|break out|cassure|orb|opening range)\b/.test(t)) return 'breakout';
+    if (/\b(pullback|pull back|retest|retracement|repli|bounce|rebond|dip)\b/.test(t)) return 'pullback';
+    if (/\b(reversal|retournement|double (top|bottom)|head and shoulders|epaule)\b/.test(t)) return 'reversal';
+    if (/\b(range|mean reversion|support|resistance)\b/.test(t)) return 'range';
+    return 'generic';
+  }
+  // Description (first paragraph) and rules (list under a "Rules" / "Checklist" heading) of a setup note body
+  function setupSections(body) {
+    const lines = String(body || '').split(/\r?\n/);
+    let description = '', inRules = false;
+    const rules = [];
+    for (const l of lines) {
+      const h = l.match(/^#{1,6}\s+(.*)/);
+      if (h) { inRules = /rule|regle|règle|checklist|criteria|conditions/i.test(h[1]); continue; }
+      const li = l.match(/^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?(.*)/);
+      if (inRules && li) { rules.push(li[1].trim()); continue; }
+      if (!description && l.trim() && !li && !l.startsWith('>')) description = l.trim();
+    }
+    return { description, rules };
+  }
+  // Risk / reward of a trade from its prices (side inferred from the stop when missing)
+  function tradeGeometry({ entry, stop, exit, side }) {
+    const e = parseNumber(entry), s = parseNumber(stop), x = parseNumber(exit);
+    if (e == null || s == null || e === s) return null;
+    const dir = /short/i.test(side || '') ? -1 : /long/i.test(side || '') ? 1 : s < e ? 1 : -1;
+    const risk = Math.abs(e - s);
+    const r = x == null ? null : Math.round(((x - e) * dir / risk) * 100) / 100;
+    return { entry: e, stop: s, exit: x, side: dir > 0 ? 'LONG' : 'SHORT', risk, r };
+  }
+  // Results in R grouped in buckets of `step` R (for a histogram)
+  function rBuckets(rs, step = 1) {
+    const vals = rs.filter((r) => typeof r === 'number' && !isNaN(r));
+    if (!vals.length) return [];
+    const lo = Math.floor(Math.min(...vals) / step) * step, hi = Math.floor(Math.max(...vals) / step) * step;
+    const out = [];
+    for (let from = lo; from <= hi + 1e-9; from += step) out.push({ from: Math.round(from * 100) / 100, to: Math.round((from + step) * 100) / 100, count: 0 });
+    vals.forEach((r) => { out[Math.min(out.length - 1, Math.floor((r - lo) / step + 1e-9))].count++; });
+    return out;
+  }
+
   return {
     IMG_EXT, LEGACY_KEYS, canonicalKey, stem, dirOf, safeName, reEsc,
     parseRaw, rOf, setPropsText, renameInContent, makeResolver,
@@ -354,5 +399,6 @@
     parseCSV, normHeader, CSV_FIELDS, detectColumns, parseNumber, toDay, normSide, computeR,
     fromChatGPT, fromClaude, parseConversations,
     tokenize, seededRandom, similarityEdges, layout3d, orient,
+    setupTemplate, setupSections, tradeGeometry, rBuckets,
   };
 });

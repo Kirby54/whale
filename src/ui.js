@@ -22,6 +22,7 @@
     ['Dashboard', () => setView('dash')],
     ['Timeline', () => setView('timeline')],
     ['Trades table', () => setView('table')],
+    ['Setups', () => setView('setups')],
     ['Classify all notes without tags (AI)', () => AI.classifyAll()],
     ['AI settings', () => AI.openSettings()],
     ['Change vault', () => changeVault()],

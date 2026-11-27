@@ -88,16 +88,31 @@ window.Graph = (() => {
       const t = tOf(x), r = radius(t) * 1.15, dy = (y - spineY(t)) / (r * 0.95), dz = z / r;
       return dy * dy + dz * dz < 1;
     };
+    // A point just outside the skin: t along the body (can go past the tail), a around it, `extra` away from the skin
+    const nearSkin = (t, a, extra) => {
+      const tc = Math.min(t, 1), r = radius(tc), c = Math.cos(a);
+      return [X0 + t * (X1 - X0), spineY(tc) + (r + extra) * c * (c > 0 ? 0.74 : 0.95), (r + extra) * Math.sin(a)];
+    };
+    // Random clusters hugging the whale: a few dense ones, many light ones, so some areas are busy and others empty
+    const clusters = Array.from({ length: 60 }, () => ({
+      c: nearSkin(rnd() * 1.18, rnd() * Math.PI * 2, 0.06 + rnd() * 0.5),
+      spread: 0.04 + rnd() * 0.2,
+      weight: Math.pow(rnd(), 3),
+    }));
+    const totalW = clusters.reduce((s, k) => s + k.weight, 0);
+    const pickCluster = () => { let r = rnd() * totalW; for (const k of clusters) { r -= k.weight; if (r <= 0) return k; } return clusters[0]; };
     const pos = new Float32Array(count * 3), size = new Float32Array(count), alpha = new Float32Array(count), phase = new Float32Array(count);
     for (let i = 0; i < count; i++) {
-      let x, y, z;
+      let x, y, z, tries = 0;
       do {
-        if (rnd() < 0.65) { x = 0.2 + gauss() * 1.7; y = gauss() * 0.8; z = gauss() * 0.95; } // a soft cloud hugging the whale
-        else { x = (rnd() * 2 - 1) * 4.2; y = (rnd() * 2 - 1) * 2.4; z = (rnd() * 2 - 1) * 2.6; } // a wider, sparse field
-      } while (insideBody(x, y, z));
+        const roll = rnd();
+        if (roll < 0.68) { const k = pickCluster(); x = k.c[0] + gauss() * k.spread; y = k.c[1] + gauss() * k.spread; z = k.c[2] + gauss() * k.spread; }
+        else if (roll < 0.95) { [x, y, z] = nearSkin(rnd() * 1.15, rnd() * Math.PI * 2, -Math.log(1 - rnd() * 0.999) * 0.16); } // thin halo around the body
+        else { x = (rnd() * 2 - 1) * 3.8; y = (rnd() * 2 - 1) * 2.1; z = (rnd() * 2 - 1) * 2.3; } // a few stray particles further away
+      } while (insideBody(x, y, z) && ++tries < 20);
       pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
-      size[i] = 0.9 + rnd() * 1.0;
-      alpha[i] = 0.1 + Math.pow(rnd(), 2) * 0.2;
+      size[i] = 0.8 + rnd() * 1.0;
+      alpha[i] = 0.08 + Math.pow(rnd(), 2) * 0.22;
       phase[i] = rnd() * Math.PI * 2;
     }
     const geo = new THREE.BufferGeometry();
@@ -149,7 +164,7 @@ window.Graph = (() => {
       transparent: true, depthWrite: false,
     });
     pts = new THREE.Points(makeGeometry(), mat); G.add(pts);
-    G.add(makeDust(8000));
+    G.add(makeDust(16000));
     const lineMat = (opacity, color) => new THREE.ShaderMaterial({
       uniforms: { uTime: mat.uniforms.uTime, uOpacity: { value: opacity }, uColor: { value: new THREE.Color(color || '#ffffff') }, uUseColor: { value: color ? 1 : 0 } },
       vertexShader: `attribute vec3 color; varying vec3 vC; varying float vG; ${SWIM}
