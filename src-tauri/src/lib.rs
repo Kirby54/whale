@@ -461,6 +461,45 @@ fn load_settings(app: &tauri::AppHandle) -> (Settings, bool) {
     (s, key_in_file)
 }
 
+/* ---------- Market data (Analysis tab) ---------- */
+
+/// Free market data sources the Analysis tab may read (no API key, public endpoints only).
+const MARKET_HOSTS: [&str; 5] = [
+    "query1.finance.yahoo.com",
+    "query2.finance.yahoo.com",
+    "api.binance.com",
+    "data-api.binance.vision",
+    "api.frankfurter.dev",
+];
+
+/// Whether a URL points to one of the allowed market data sources over HTTPS.
+fn market_url_allowed(url: &str) -> bool {
+    reqwest::Url::parse(url)
+        .map(|u| u.scheme() == "https" && u.host_str().map(|h| MARKET_HOSTS.contains(&h)).unwrap_or(false))
+        .unwrap_or(false)
+}
+
+/// Downloads market data (prices, symbol search) from an allowed public source and returns the body.
+/// Done on the Rust side because these sites do not allow requests from inside the app's web view.
+#[tauri::command]
+async fn market_get(url: String) -> Result<String, String> {
+    if !market_url_allowed(&url) {
+        return Err("This data source is not allowed".into());
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Safari/537.36 Whale")
+        .build()
+        .map_err(err)?;
+    let res = client.get(&url).send().await.map_err(|e| format!("Could not reach the data source: {e}"))?;
+    let status = res.status();
+    let body = res.text().await.map_err(err)?;
+    if !status.is_success() {
+        return Err(format!("Data source error {}", status.as_u16()));
+    }
+    Ok(body)
+}
+
 /// Sends a request to the chosen AI provider and returns the raw JSON answer.
 /// - claude: POST https://api.anthropic.com/v1/messages (the body is built by the interface)
 /// - ollama: POST {ollama_url}/api/chat
@@ -534,7 +573,8 @@ pub fn run() {
             get_settings,
             save_settings,
             forget_key,
-            ai_request
+            ai_request,
+            market_get
         ])
         .run(tauri::generate_context!())
         .expect("error while starting Whale");
@@ -557,6 +597,16 @@ mod tests {
         for bad in ["", "../secret.txt", "Trades/../../x.md", "/etc/passwd", "C:/Windows/x.md", r"\\serveur\partage\x.md", "."] {
             assert!(safe_join(root, bad).is_err(), "should refuse {bad:?}");
         }
+    }
+
+    #[test]
+    fn market_urls_are_limited_to_known_sources() {
+        assert!(market_url_allowed("https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1y&interval=1d"));
+        assert!(market_url_allowed("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d"));
+        assert!(!market_url_allowed("http://query1.finance.yahoo.com/v8/finance/chart/AAPL"), "https only");
+        assert!(!market_url_allowed("https://example.com/steal"));
+        assert!(!market_url_allowed("https://query1.finance.yahoo.com.evil.com/x"));
+        assert!(!market_url_allowed("not a url"));
     }
 
     #[test]

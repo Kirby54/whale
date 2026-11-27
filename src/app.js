@@ -330,7 +330,7 @@ async function open(n) {
   }
   cur = n; setView('note'); renderTree();
 }
-const VIEWS = { note: 'btnNotes', graph: 'btnGraph', dash: 'btnDash', timeline: 'btnTimeline', table: 'btnTable', ask: 'btnAsk', setups: 'btnSetups' };
+const VIEWS = { note: 'btnNotes', graph: 'btnGraph', dash: 'btnDash', timeline: 'btnTimeline', table: 'btnTable', ask: 'btnAsk', setups: 'btnSetups', analysis: 'btnAnalysis' };
 function setView(v) {
   view = v;
   Object.keys(VIEWS).forEach((k) => { $(k + 'view').classList.toggle('on', k === v); $(VIEWS[k]).classList.toggle('on', k === v); });
@@ -341,6 +341,7 @@ function setView(v) {
   $('more').classList.add('hide');
   if (window.AIPanel) AIPanel.onView(v);
   if (v === 'graph') Graph.show(); else Graph.hide();
+  if (v === 'analysis') { $('crumb').innerHTML = '<b>Analysis</b> · any market, live chart and quant tools'; Analysis.show(); } else if (window.Analysis) Analysis.hide();
   if (v === 'dash') { $('crumb').innerHTML = '<b>Dashboard</b>'; renderDash(); }
   if (v === 'timeline') { $('crumb').innerHTML = '<b>Timeline</b> · all your notes over time'; Views.timeline(); }
   if (v === 'table') { $('crumb').innerHTML = '<b>Trades table</b>'; Views.table(); }
@@ -447,6 +448,7 @@ $('btnDash').onclick = () => setView('dash');
 $('btnTimeline').onclick = () => setView('timeline');
 $('btnTable').onclick = () => setView('table');
 $('btnSetups').onclick = () => setView('setups');
+$('btnAnalysis').onclick = () => setView('analysis');
 $('btnAsk').onclick = () => setView('ask');
 $('btnImport').onclick = () => Importer.open();
 $('btnSettings').onclick = () => AI.openSettings();

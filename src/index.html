@@ -27,6 +27,7 @@
       <button class="nl" id="btnGraph">Brain</button>
       <button class="nl" id="btnNotes">Notes</button>
       <button class="nl" id="btnSetups">Setups</button>
+      <button class="nl" id="btnAnalysis">Analysis</button>
       <button class="nl" id="btnNew">Write</button>
     </div>
     <div class="navlinks">
@@ -78,6 +79,7 @@
         <div id="ghistwrap"><canvas id="ghist"></canvas><div id="ghistlabel"></div></div>
       </section>
       <section class="view" id="dashview"><div id="dash"></div></section>
+      <section class="view" id="analysisview"><div id="analysis"></div></section>
       <section class="view scrollv" id="setupsview"><div class="page wide" id="setups"></div></section>
       <section class="view scrollv" id="timelineview"><div class="page" id="timeline"></div></section>
       <section class="view scrollv" id="tableview"><div class="page wide" id="tradetable"></div></section>
@@ -119,7 +121,10 @@
 <div id="modal" class="modal hide"><div class="mbox" id="mbox"></div></div>
 <script src="vendor/three.min.js"></script>
 <script src="vendor/editor.bundle.js"></script>
+<script src="vendor/lightweight-charts.standalone.production.js"></script>
 <script src="core.js"></script>
+<script src="quant.js"></script>
+<script src="market.js"></script>
 <script src="seed.js"></script>
 <script src="storage.js"></script>
 <script src="app.js"></script>
@@ -128,6 +133,7 @@
 <script src="import.js"></script>
 <script src="views.js"></script>
 <script src="setups.js"></script>
+<script src="analysis.js"></script>
 <script src="aipanel.js"></script>
 <script src="ui.js"></script>
 </body>

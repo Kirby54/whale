@@ -60,6 +60,29 @@ Win rate, total and average R, profit factor, equity curve, and results by setup
   </tr>
 </table>
 
+### 📉 Analysis: any market, with a quant desk's toolkit
+
+Type any symbol (`BTC`, `EURUSD`, `TSLA`, `gold`, `SPX`, `US30`…) and get a live chart with free data: **Yahoo Finance** (stocks, ETFs, indices, forex, futures, crypto), **Binance** (crypto) and the **ECB** (forex), no API key needed. Charts by [TradingView Lightweight Charts](https://github.com/tradingview/lightweight-charts).
+
+- **Chart:** candles from 5-minute to monthly bars, SMA 20/50/200, EMA 21, Bollinger bands, VWAP, volume, RSI and MACD.
+- **Drawing tools:** levels, trend lines, Fibonacci, long and short positions (entry, stop, 2R target), and a measure tool. Drawings are kept per symbol.
+- **Quant panel**, the numbers trading desks look at:
+  - *Volatility:* realized and Parkinson volatility, ATR, a volatility cone (is today's volatility high or low for this market?), and the expected move.
+  - *Risk:* Value at Risk 95% and 99%, expected shortfall, max drawdown, Sharpe and Sortino ratios.
+  - *Behavior:* return distribution against a normal curve (skew, fat tails), Hurst exponent (trending or mean-reverting), autocorrelation, half-life of mean reversion, z-score.
+  - *Context:* beta and correlation against a benchmark (S&P 500, Bitcoin or the dollar index), volume profile with point of control and value area, pivots, weekday seasonality.
+  - *Scenarios:* a Monte Carlo projection cone drawn on the chart.
+  - *Sizing:* a position sizer from your account and risk %, with the Kelly fraction from your own journal.
+- **Into your journal:** save the chart and its numbers as a note, turn a planned position into a trade note, or send everything to your AI for a second opinion.
+
+<p align="center"><img src="docs/screenshots/analysis.png" alt="The Analysis tab: live BTC chart with Fibonacci, a planned long and the quant panel" width="100%"></p>
+
+### 🎯 Setups, explained with charts
+
+Each setup gets its own page: a schematic chart showing how it looks (entry, stop, target, key levels), its rules, the mistakes you made on it, and how it actually performs in your journal: win rate, average R, equity curve and R distribution. Trade notes show their risk/reward under the title.
+
+<p align="center"><img src="docs/screenshots/setups.png" alt="The Breakout setup page with its schematic chart and statistics" width="100%"></p>
+
 ### ⌨️ Ask or search, from anywhere
 
 <kbd>Ctrl</kbd>+<kbd>K</kbd> finds any note, runs any action, or sends your question straight to the AI.
@@ -147,9 +170,9 @@ npm test         # run the tests
 
 | Folder | Contents |
 |---|---|
-| `src/` | The interface, no framework: `app.js` (core), `core.js` (pure, tested logic), `graph.js` (3D brain), `ai.js` and `aipanel.js` (AI), `import.js`, `views.js`, `ui.js` |
+| `src/` | The interface, no framework: `app.js` (core), `core.js` (pure, tested logic), `graph.js` (3D brain), `ai.js` and `aipanel.js` (AI), `setups.js`, `analysis.js` (Analysis tab), `quant.js` (tested quant toolkit), `market.js` (market data sources), `import.js`, `views.js`, `ui.js` |
 | `editor/` | Editor source (CodeMirror 6), bundled by esbuild into `src/vendor/editor.bundle.js` |
-| `src-tauri/` | The Rust side: vault files, settings, import and AI calls |
+| `src-tauri/` | The Rust side: vault files, settings, import, AI calls and market data (limited to the allowed sources) |
 | `tests/` | Logic tests (`npm test`); Rust tests with `cargo test` in `src-tauri/` |
 | `assets/` | Logo options (the official icon is `a-ocean-gem`) and generated icons |
 | `docs/screenshots/` | README screenshots, regenerated with `tools/screenshots.ps1` |
@@ -162,6 +185,8 @@ Opening `src/index.html` in a browser also works: notes are then kept in the bro
 - [x] Windows installer in GitHub Releases
 - [x] Safe writes and conflict detection when a note is edited elsewhere
 - [x] Notes placed by meaning in the brain (local TF-IDF similarity + links)
+- [x] Setups tab and Analysis tab (live charts, drawing tools, quant panel)
+- [ ] Price alerts and a watchlist in the Analysis tab
 - [ ] Optional AI embeddings for even better placement
 - [ ] Editable properties form, code highlighting and tables in the editor
 - [ ] macOS and Linux builds
@@ -174,4 +199,6 @@ Issues and pull requests are welcome. Run `npm test` before submitting a change.
 
 [MIT](LICENSE)
 
-<sub>Screenshots use the example notes that ship with the app; the AI answer shown is an example.</sub>
+Bundled libraries keep their own licenses: [three.js](https://threejs.org) (MIT), [CodeMirror 6](https://codemirror.net) (MIT) and [TradingView Lightweight Charts™](https://www.tradingview.com/lightweight-charts/) (Apache-2.0).
+
+<sub>Screenshots use the example notes that ship with the app; the AI answer shown is an example. Market data comes from free public sources and can be delayed; nothing in Whale is investment advice.</sub>

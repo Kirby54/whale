@@ -16,7 +16,10 @@ const DEMO_ANSWER = {
   notes: ['2026-11-12 BTC long', '2026-11-20 BTC long', '2026-11-05 BTC short'],
   view_label: 'your BTC trades, November 2026',
 };
-try { localStorage.clear(); if (shot === 'brain-full' || shot === 'palette') localStorage.setItem('whale-aipanel', '0'); } catch (e) {}
+try { localStorage.clear(); if (shot === 'brain-full' || shot === 'palette') localStorage.setItem('whale-aipanel', '0');
+  // read by the Analysis tab when the app starts
+  if (shot === 'analysis') localStorage.setItem('whale-analysis', JSON.stringify({ symbol: 'BTC-USD', tf: '1Y', ind: { sma20: true, sma50: true, vol: true, rsi: true, mc: true } }));
+} catch (e) {}
 f.onload = async () => {
   const w = f.contentWindow, d = w.document;
   await wait(800);
@@ -37,6 +40,16 @@ f.onload = async () => {
     w.setView('dash'); await wait(500);
   } else if (shot === 'table') {
     w.setView('table'); await wait(300);
+  } else if (shot === 'setups') {
+    w.setView('setups'); await wait(500);
+  } else if (shot === 'analysis') {
+    // live BTC prices (Binance answers browser requests), with a Monte Carlo cone, a Fibonacci and a planned long
+    w.setView('analysis'); await wait(2500);
+    const num = (s) => +String(s).replace(/,/g, '');
+    const [hi, lo] = [...d.querySelectorAll('.an-kv div')].find((x) => /Period high/.test(x.textContent)).querySelector('b').textContent.split(' / ').map(num);
+    const last = num(d.querySelector('.an-price').firstChild.textContent);
+    w.localStorage.setItem('whale-drawings-BTC-USD', JSON.stringify([{ type: 'fib', from: hi, to: lo }, { type: 'position', side: 'long', entry: last, stop: last * 0.95 }]));
+    w.Analysis.load('BTC-USD'); await wait(1500);
   } else if (shot === 'palette') {
     w.setView('graph'); await wait(300);
     d.getElementById('openPalette').click(); await wait(100);

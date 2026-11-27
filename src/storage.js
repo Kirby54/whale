@@ -25,6 +25,8 @@
       saveSettings: (s) => invoke('save_settings', { provider: s.provider, claudeKey: s.claude_key || '', claudeModel: s.claude_model || '', ollamaUrl: s.ollama_url || '', ollamaModel: s.ollama_model || '' }),
       forgetKey: () => invoke('forget_key'),
       ai: (body) => invoke('ai_request', { body }),
+      // Market data from allowed public sources (Yahoo Finance, Binance, Frankfurter), fetched by the Rust side
+      market: (url) => invoke('market_get', { url }),
     };
     return;
   }
@@ -54,5 +56,7 @@
     saveSettings: async () => { throw new Error('Settings work in the desktop app'); },
     forgetKey: async () => { throw new Error('Only available in the desktop app'); },
     ai: async () => { throw new Error('The AI works in the desktop app (not in the browser).'); },
+    // In a plain browser most sources refuse direct requests (CORS); Binance and Frankfurter allow them
+    market: async (url) => { const r = await fetch(url); if (!r.ok) throw new Error('Data source error ' + r.status); return r.text(); },
   };
 })();

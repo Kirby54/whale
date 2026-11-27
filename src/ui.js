@@ -23,6 +23,7 @@
     ['Timeline', () => setView('timeline')],
     ['Trades table', () => setView('table')],
     ['Setups', () => setView('setups')],
+    ['Analysis: chart any market', () => setView('analysis')],
     ['Classify all notes without tags (AI)', () => AI.classifyAll()],
     ['AI settings', () => AI.openSettings()],
     ['Change vault', () => changeVault()],
