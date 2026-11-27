@@ -125,10 +125,10 @@ window.Desk = (() => {
     return LC.createChart(box, {
       autoSize: true,
       localization: { locale: LOCALE, priceFormatter: (p) => U().fmt(p) },
-      layout: { background: { type: 'solid', color: '#000' }, textColor: '#5f5f5f', fontFamily: 'system-ui, -apple-system, Segoe UI, sans-serif', fontSize: 10.5, attributionLogo: false },
+      layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#8a91a8', fontFamily: 'system-ui, -apple-system, Segoe UI, sans-serif', fontSize: 10.5, attributionLogo: false },
       grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(255,255,255,0.035)' } },
       rightPriceScale: { borderVisible: false }, timeScale: { borderVisible: false },
-      crosshair: { vertLine: { color: 'rgba(255,255,255,0.2)', style: 3, labelBackgroundColor: '#1a1a1a' }, horzLine: { color: 'rgba(255,255,255,0.2)', style: 3, labelBackgroundColor: '#1a1a1a' } },
+      crosshair: { vertLine: { color: 'rgba(255,255,255,0.2)', style: 3, labelBackgroundColor: '#1b1f33' }, horzLine: { color: 'rgba(255,255,255,0.2)', style: 3, labelBackgroundColor: '#1b1f33' } },
     });
   }
   function grid(el) {

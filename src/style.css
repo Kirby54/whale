@@ -552,3 +552,144 @@ body.desktop #app{height:calc(100vh - 32px)}
 @media (max-width:1150px){.an-body{grid-template-columns:42px minmax(0,1fr) 260px}.an-tabs button small{display:none}}
 @media (max-width:900px){.an-body{grid-template-columns:42px minmax(0,1fr)}.an-panel{display:none}.an-search{width:200px}}
 .pr code{font-family:var(--mono);font-size:11.5px;color:var(--tx3);margin-left:4px}
+
+/* =====================================================================================
+   Glass theme (ui-ux-pro-max: "liquid-glass" + "glassmorphism" on a dark OLED base)
+   - content stays on a clear layer; glass is used for chrome, cards, controls and overlays
+   - three glass levels: chrome (nav, bars, panels), cards, floating (menus, modals, popovers)
+   - text contrast >= 4.5:1, visible focus, opaque fallback for reduced transparency, no motion when reduced
+   ===================================================================================== */
+:root{
+  --tx:#eef0f6;--tx2:#b1b7c9;--tx3:#8a91a8;
+  --line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.13);
+  --bg2:rgba(255,255,255,.035);--bg3:rgba(255,255,255,.055);--bg4:rgba(255,255,255,.08);
+  --night:#04060d;
+  /* glass levels */
+  --g1:rgba(14,17,30,.40);--g1-blur:blur(22px) saturate(150%);
+  --g2:rgba(255,255,255,.045);--g2-blur:blur(16px) saturate(140%);
+  --g3:rgba(16,18,30,.72);--g3-blur:blur(28px) saturate(170%);
+  --g-edge:rgba(255,255,255,.10);--g-edge-hi:rgba(255,255,255,.18);
+  --g-shine:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,0) 42%);
+  --g-inset:inset 0 1px 0 rgba(255,255,255,.07);
+  --g-shadow:0 10px 34px rgba(0,0,0,.38);
+  --ctl:rgba(255,255,255,.045);--ctl-hover:rgba(255,255,255,.085);
+  --ctl-on:linear-gradient(180deg,rgba(255,255,255,.17),rgba(255,255,255,.06));
+  --acc-glass:rgba(139,108,239,.16);--acc-edge:rgba(166,139,255,.38);
+  --field:rgba(0,0,0,.28);
+  --r-sm:8px;--r-md:12px;--r-lg:16px;
+  --t-fast:150ms;--t-med:220ms;
+}
+html,body{font-family:Inter,"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif}
+/* ambient light behind the glass: violet, blue and teal halos on deep night */
+body{background:
+  radial-gradient(1100px 700px at 4% -14%,rgba(124,92,255,.30),transparent 62%),
+  radial-gradient(900px 640px at 104% 112%,rgba(45,212,191,.15),transparent 62%),
+  radial-gradient(780px 560px at 86% 12%,rgba(59,130,246,.13),transparent 60%),
+  radial-gradient(700px 520px at 30% 96%,rgba(236,72,153,.07),transparent 60%),
+  var(--night);background-attachment:fixed}
+#main,#app{background:transparent}
+.view:not(#graphview){background:transparent}
+
+/* shared glass recipes */
+#titlebar,#nav,#side,#tabbar,#right,#aipanel,.an-head,.an-rail,.an-panel,.gr-top{
+  background:var(--g1);-webkit-backdrop-filter:var(--g1-blur);backdrop-filter:var(--g1-blur);border-color:var(--g-edge)!important}
+body.desktop #titlebar{background:var(--g1);border-bottom:1px solid var(--g-edge)}
+#nav{border-right:1px solid var(--g-edge)}
+.card,.dk-tile,.dk-card,.su-card,.props,.su-trade,#eq,.bl,.logos button,.an-sec .su-svg{
+  background:var(--g2);background-image:var(--g-shine);-webkit-backdrop-filter:var(--g2-blur);backdrop-filter:var(--g2-blur);
+  border:1px solid var(--g-edge);border-radius:var(--r-md);box-shadow:var(--g-inset)}
+.an-sec .su-svg{padding:6px;border-radius:var(--r-sm)}
+.mbox,.pbox,#more,.an-sugg,.an-pop,.an-edit,#gtip,.toast,#glegend,#ghistwrap{
+  background:var(--g3);background-image:var(--g-shine);-webkit-backdrop-filter:var(--g3-blur);backdrop-filter:var(--g3-blur);
+  border:1px solid var(--g-edge-hi);box-shadow:var(--g-inset),var(--g-shadow)}
+.mbox{border-radius:var(--r-lg)}
+.pbox{border-radius:var(--r-lg)}
+#more{border-radius:var(--r-md)}
+.modal{background:rgba(3,5,12,.58);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+#glegend{padding:12px 14px;border-radius:var(--r-md)}
+#ghistwrap{padding:10px 12px 8px;border-radius:var(--r-md);width:186px}
+
+/* controls: translucent, the active one is a raised liquid pill */
+.tbtn,.an-ghost,.chip,.suggest button,.apsug button,.src a,#apOpen,.su-item,.mi,.nl,.pr,.wl-row,.an-dl,.an-pi,.an-s,.tl-item{
+  transition:background-color var(--t-fast) ease,border-color var(--t-fast) ease,color var(--t-fast) ease,box-shadow var(--t-fast) ease}
+.tbtn,.an-ghost,.chip,.suggest button,.apsug button,#apOpen{background:var(--ctl);border:1px solid var(--g-edge);color:var(--tx2)}
+.tbtn,.an-ghost{border-radius:var(--r-sm);min-height:28px}
+.chip{min-height:26px;padding:2px 11px;border-radius:999px}
+.tbtn:hover,.an-ghost:hover,.chip:hover,.suggest button:hover,.apsug button:hover,#apOpen:hover{background:var(--ctl-hover);border-color:var(--g-edge-hi);color:var(--tx)}
+.chip.on,.su-item.on,.mi.on{background:var(--ctl-on);border-color:var(--g-edge-hi);color:#fff;box-shadow:var(--g-inset)}
+.tbtn.ai,.an-ghost.ai{background:var(--acc-glass);border-color:var(--acc-edge);color:#d6cbff}
+.tbtn.ai:hover,.an-ghost.ai:hover{background:rgba(139,108,239,.26);color:#fff}
+.an-seg,.seg{background:rgba(255,255,255,.035);border:1px solid var(--g-edge);border-radius:10px;padding:2px;box-shadow:inset 0 1px 2px rgba(0,0,0,.35)}
+.an-seg button,.seg button{min-height:26px;border-radius:8px;color:var(--tx2);border:1px solid transparent}
+.an-seg button:hover,.seg button:hover{color:var(--tx);background:rgba(255,255,255,.05)}
+.an-seg button.on,.seg button.on{background:var(--ctl-on);border-color:var(--g-edge-hi);color:#fff;box-shadow:var(--g-inset),0 2px 10px rgba(0,0,0,.3)}
+.an-tabs button{color:var(--tx2)}
+.an-tabs button small{color:var(--tx3)}
+.an-tabs button.on{color:#fff;box-shadow:inset 0 -2px 0 var(--acc2);background:linear-gradient(180deg,transparent 40%,rgba(166,139,255,.10))}
+.an-rail button{color:var(--tx2);border:1px solid transparent}
+.an-rail button:hover{background:var(--ctl-hover)}
+.an-rail button.on{background:var(--acc-glass);border-color:var(--acc-edge);color:#e2d9ff;box-shadow:var(--g-inset)}
+.an-ptabs button{color:var(--tx2)}
+
+/* left navigation: glass pill for the current view */
+.nl{border-radius:var(--r-sm);padding:6px 10px;margin:1px 0;color:var(--tx2)}
+.nl:hover{background:rgba(255,255,255,.05);color:#fff}
+.nl.on{background:var(--ctl-on);color:#fff;box-shadow:var(--g-inset);font-weight:600}
+.nl.on::before{left:-12px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:var(--acc2);box-shadow:0 0 12px rgba(166,139,255,.6)}
+#openPalette{background:var(--field);border:1px solid var(--g-edge);border-radius:var(--r-sm);color:var(--tx2);transition:border-color var(--t-fast) ease}
+#openPalette:hover{border-color:var(--g-edge-hi);color:#fff}
+#openPalette kbd{color:var(--tx3)}
+.mi:hover{background:rgba(255,255,255,.07)}
+.msep{background:var(--g-edge)}
+
+/* fields */
+#search,.search2,.an-search,.wl-add input,.al-form input,.al-form select,.an-form input,.an-edit input,.mbox input,.mbox textarea,.mbox select,#askform,#apform{
+  background:var(--field);border:1px solid var(--g-edge);border-radius:var(--r-sm)}
+#askform,#apform{border-radius:var(--r-md);box-shadow:var(--g-inset)}
+.an-search:focus-within,#search:focus,.search2:focus,.wl-add input:focus,.al-form input:focus,.an-form input:focus,.mbox input:focus{border-color:var(--acc-edge);box-shadow:0 0 0 3px rgba(139,108,239,.18)}
+.an-search input::placeholder,#pinput::placeholder,.wl-add input::placeholder{color:var(--tx3)}
+#pinput{border-bottom:1px solid var(--g-edge)}
+.pr.on{background:rgba(255,255,255,.08)}
+.pr small{color:var(--tx3)}
+
+/* lists and rows */
+.wl-row:hover,.an-dl:hover,.tl-item:hover,.su-item:hover,tr.click:hover td,.dk-table tr.click:hover td{background:rgba(255,255,255,.04)}
+.wl-row.on,.an-dl.on{background:linear-gradient(90deg,rgba(166,139,255,.14),rgba(166,139,255,.03))}
+.dk-table th{background:rgba(8,10,20,.82);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.dk-table td,.dk-table th,th,td{border-color:rgba(255,255,255,.06)}
+.dk-tile.click:hover{border-color:var(--g-edge-hi);background-color:rgba(255,255,255,.07)}
+.cm td.self{background:rgba(255,255,255,.04)!important}
+
+/* chart area: a clear layer over a faint glass so the data stays sharp */
+.an-charts{background:rgba(255,255,255,.015)}
+.gr{background:var(--g-edge)}
+.gr-cell{background:rgba(6,8,16,.72)}
+.an-legend b{color:var(--tx)}
+
+/* text that must stay readable (>= 4.5:1 on the darkest surface) */
+.an-pane-l,.an-source,.an-attr,.an-legend,.an-q-tf,.wl-h,.wl-note,.wl-sym small,.an-s-h,.dk-src,.dk-h .dk-sub,.dk-tile .l,.dk-tile .s,.dk-msg,
+.yc-legend,.su-list-h,.su-item small,#ghistlabel,#status,.al-row small,.empty,.note,.sub,.tl-day,.tl-snip,.rh,.pk,.card .l,.an-kv span,.an-form label,.nw-meta{color:var(--tx3)}
+.an-search{color:var(--tx3)}
+.su-lbl{fill:#9aa1b6}
+.an-q-name{color:var(--tx3)}
+#aistatus{color:var(--tx2);border-top-color:var(--g-edge)}
+
+/* focus: visible on every control (keyboard) */
+:focus-visible{outline:2px solid var(--acc2);outline-offset:2px;border-radius:6px}
+input:focus-visible,textarea:focus-visible{outline:none}
+
+/* scrollbars, quieter on glass */
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2);background-clip:padding-box}
+::-webkit-scrollbar-track{background:transparent}
+
+/* reduced transparency: solid surfaces, no blur */
+@media (prefers-reduced-transparency:reduce){
+  :root{--g1:#0b0e19;--g2:#10131f;--g3:#141826;--g1-blur:none;--g2-blur:none;--g3-blur:none;--g-shine:none;--ctl:#141826;--field:#090b14}
+  body{background:var(--night)}
+  .modal{background:rgba(3,5,12,.86);-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+/* reduced motion: no transitions or CSS animations */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition:none!important;animation:none!important}
+}

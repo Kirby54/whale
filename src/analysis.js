@@ -65,16 +65,16 @@ window.Analysis = (() => {
             <div class="an-quote" id="anQuote"></div>
             <div class="an-ctrl">
               <div class="an-seg">${Market.TIMEFRAMES.map((t) => `<button data-tf="${t.id}">${t.id}</button>`).join('')}</div>
-              <div class="an-seg an-seg-i">${TYPES.map(([k, l]) => `<button data-ctype="${k}" title="${l}">${ICON[k]}</button>`).join('')}</div>
+              <div class="an-seg an-seg-i">${TYPES.map(([k, l]) => `<button data-ctype="${k}" title="${l}" aria-label="${l} chart">${ICON[k]}</button>`).join('')}</div>
               <div class="an-menu"><button class="an-ghost" id="anIndBtn">Indicators <span id="anIndN"></span></button>
                 <div class="an-pop hide" id="anIndPop">${IND.map(([k, l]) => `<button class="an-pi" data-ind="${k}"><i style="background:${IND_COLOR[k]}"></i><span>${l}</span><b></b></button>`).join('')}</div></div>
             </div>
           </div>
           <div class="an-body">
             <div class="an-rail">
-              <button data-tool="" title="Select and move drawings (Esc)">${ICON.select}</button><span class="an-rail-sep"></span>
-              ${TOOLS.map(([k, l, h]) => `<button data-tool="${k}" title="${l}: ${h}">${ICON[k]}</button>`).join('')}<span class="an-rail-sep"></span>
-              <button id="anClear" title="Remove all drawings on this symbol">${ICON.trash}</button>
+              <button data-tool="" title="Select and move drawings (Esc)" aria-label="Select and move drawings">${ICON.select}</button><span class="an-rail-sep"></span>
+              ${TOOLS.map(([k, l, h]) => `<button data-tool="${k}" title="${l}: ${h}" aria-label="${l}">${ICON[k]}</button>`).join('')}<span class="an-rail-sep"></span>
+              <button id="anClear" title="Remove all drawings on this symbol" aria-label="Remove all drawings">${ICON.trash}</button>
             </div>
             <div class="an-charts">
               <div class="an-legend" id="anLegend"></div>
@@ -105,14 +105,14 @@ window.Analysis = (() => {
     const opts = (extra) => Object.assign({
       autoSize: true,
       localization: { locale: LOCALE, priceFormatter: (p) => fmt(p) }, // the app's language, and prices like 108,000
-      layout: { background: { type: 'solid', color: '#000' }, textColor: '#6f6f6f', fontFamily: 'system-ui, -apple-system, Segoe UI, sans-serif', fontSize: 11, attributionLogo: false },
+      layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#8a91a8', fontFamily: 'system-ui, -apple-system, Segoe UI, sans-serif', fontSize: 11, attributionLogo: false },
       grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.1, bottom: 0.08 } },
       timeScale: { borderVisible: false, rightOffset: 4, barSpacing: 6, minBarSpacing: 0.4 },
       crosshair: {
         mode: LC.CrosshairMode.Normal,
-        vertLine: { color: 'rgba(255,255,255,0.22)', width: 1, style: 3, labelBackgroundColor: '#1a1a1a' },
-        horzLine: { color: 'rgba(255,255,255,0.22)', width: 1, style: 3, labelBackgroundColor: '#1a1a1a' },
+        vertLine: { color: 'rgba(255,255,255,0.22)', width: 1, style: 3, labelBackgroundColor: '#1b1f33' },
+        horzLine: { color: 'rgba(255,255,255,0.22)', width: 1, style: 3, labelBackgroundColor: '#1b1f33' },
       },
     }, extra || {});
     charts.main = LC.createChart($('anMain'), opts());

@@ -104,7 +104,7 @@ Each setup gets its own page: a schematic chart showing how it looks (entry, sto
 | **AI classification** | One click fills in a note's type, tags, date, summary and trade properties, and links it to your other notes. Works on a single note or the whole vault. |
 | **Import** | Obsidian or Notion folders (Markdown), ChatGPT and Claude conversations (`conversations.json`), and broker trades as CSV (MT4/MT5, TradingView, Binance, IBKR…) with R computed for you. |
 | **Timeline** | All your notes month by month, filterable by type. |
-| **Native feel** | Black built-in title bar, 3 logos to choose from, and a ~8 MB app. |
+| **Native feel** | A dark glass design (frosted translucent panels over soft ambient light, solid surfaces when Windows asks for reduced transparency), built-in title bar, 3 logos to choose from, and a ~8 MB app. |
 
 ## AI, your choice
 
