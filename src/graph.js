@@ -77,6 +77,51 @@ window.Graph = (() => {
     return geo;
   }
 
+  /* ---------- Dust around the whale ----------
+     Faint particles drifting slowly around the body, like plankton. Purely decorative:
+     no notes, not clickable, not affected by highlights or the light sweep. */
+  function makeDust(count) {
+    let seed = 99; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const gauss = () => { let u = 0; while (!u) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
+    const insideBody = (x, y, z) => {
+      if (x < X0 || x > X1) return false;
+      const t = tOf(x), r = radius(t) * 1.15, dy = (y - spineY(t)) / (r * 0.95), dz = z / r;
+      return dy * dy + dz * dz < 1;
+    };
+    const pos = new Float32Array(count * 3), size = new Float32Array(count), alpha = new Float32Array(count), phase = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      let x, y, z;
+      do {
+        if (rnd() < 0.65) { x = 0.2 + gauss() * 1.7; y = gauss() * 0.8; z = gauss() * 0.95; } // a soft cloud hugging the whale
+        else { x = (rnd() * 2 - 1) * 4.2; y = (rnd() * 2 - 1) * 2.4; z = (rnd() * 2 - 1) * 2.6; } // a wider, sparse field
+      } while (insideBody(x, y, z));
+      pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+      size[i] = 0.9 + rnd() * 1.0;
+      alpha[i] = 0.1 + Math.pow(rnd(), 2) * 0.2;
+      phase[i] = rnd() * Math.PI * 2;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('asize', new THREE.BufferAttribute(size, 1));
+    geo.setAttribute('aalpha', new THREE.BufferAttribute(alpha, 1));
+    geo.setAttribute('aphase', new THREE.BufferAttribute(phase, 1));
+    const u = pts.material.uniforms; // share time, pixel ratio and camera distance with the whale
+    return new THREE.Points(geo, new THREE.ShaderMaterial({
+      uniforms: { uTime: u.uTime, uPR: u.uPR, uDist: u.uDist },
+      vertexShader: `attribute float asize; attribute float aalpha; attribute float aphase;
+        uniform float uTime; uniform float uPR; uniform float uDist; varying float vA;
+        void main(){
+          vec3 p = position + 0.05 * vec3(sin(uTime * 0.13 + aphase), sin(uTime * 0.11 + aphase * 1.7), cos(uTime * 0.09 + aphase * 0.6));
+          vA = aalpha * (0.7 + 0.3 * sin(uTime * 0.5 + aphase * 3.0));
+          vec4 mv = modelViewMatrix * vec4(p, 1.0);
+          gl_PointSize = asize * uPR * (uDist / -mv.z); gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `varying float vA;
+        void main(){ float d = length(gl_PointCoord - 0.5); if (d > 0.5) discard;
+          gl_FragColor = vec4(0.72, 0.78, 0.92, vA * smoothstep(0.5, 0.2, d)); }`,
+      transparent: true, depthWrite: false,
+    }));
+  }
+
   /* ---------- WebGL setup ---------- */
   function init() {
     R = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
@@ -95,21 +140,22 @@ window.Graph = (() => {
       vertexShader: `attribute vec3 acolor; attribute float asize; attribute float aalpha;
         uniform float uPR; uniform float uDist; varying vec3 vC; varying float vA; ${SWIM}
         void main(){ float g = sweep(position);
-          vC = mix(acolor, vec3(1.0), g * 0.65); vA = min(1.0, aalpha + g * 0.55);
+          vC = mix(acolor, vec3(1.0), g * 0.3); vA = min(1.0, aalpha + g * 0.22);
           vec4 mv=modelViewMatrix*vec4(swim(position),1.0);
-          gl_PointSize=asize*(1.0 + g * 0.9)*uPR*(uDist/-mv.z); gl_Position=projectionMatrix*mv; }`,
+          gl_PointSize=asize*(1.0 + g * 0.4)*uPR*(uDist/-mv.z); gl_Position=projectionMatrix*mv; }`,
       fragmentShader: `varying vec3 vC; varying float vA;
         void main(){ float d=length(gl_PointCoord-0.5); if(d>0.5) discard;
           gl_FragColor=vec4(vC, vA*smoothstep(0.5,0.3,d)); }`,
       transparent: true, depthWrite: false,
     });
     pts = new THREE.Points(makeGeometry(), mat); G.add(pts);
+    G.add(makeDust(8000));
     const lineMat = (opacity, color) => new THREE.ShaderMaterial({
       uniforms: { uTime: mat.uniforms.uTime, uOpacity: { value: opacity }, uColor: { value: new THREE.Color(color || '#ffffff') }, uUseColor: { value: color ? 1 : 0 } },
       vertexShader: `attribute vec3 color; varying vec3 vC; varying float vG; ${SWIM}
         void main(){ vC=color; vG=sweep(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(swim(position),1.0); }`,
       fragmentShader: `uniform float uOpacity; uniform vec3 uColor; uniform float uUseColor; varying vec3 vC; varying float vG;
-        void main(){ vec3 c = uUseColor > 0.5 ? uColor : vC; gl_FragColor=vec4(mix(c, vec3(1.0), vG * 0.6), min(1.0, uOpacity + vG * 0.5)); }`,
+        void main(){ vec3 c = uUseColor > 0.5 ? uColor : vC; gl_FragColor=vec4(mix(c, vec3(1.0), vG * 0.3), min(1.0, uOpacity + vG * 0.2)); }`,
       transparent: true, depthWrite: false,
     });
     // Every link between notes, always visible as thin threads (colored by the notes' folders)
