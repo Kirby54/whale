@@ -3,7 +3,7 @@
    Folder legend (hover / click to highlight) and time histogram (draggable window). */
 window.Graph = (() => {
   const PALETTE = ['#8b7cf6', '#2dd4bf', '#4f8cf7', '#facc15', '#fb923c', '#4ade80', '#f472b6', '#f87171', '#22d3ee', '#a3e635', '#e879f9', '#94a3b8'];
-  let N_CLOUD = 7000; // grows with the vault
+  let N_CLOUD = 16000; // grows with the vault
   let BODY_N = 0;     // the first BODY_N points are the body (skin + pleats); fins and flukes come after
   let R, S, C, G, pts, linkLines, webLines, ray, inited = false, running = false;
   let zoom = 1, ry = 0.35, rx = 0.42, drag = false, moved = 0, lx = 0, ly = 0, auto = true, tt = 0;
@@ -85,26 +85,31 @@ window.Graph = (() => {
     ray = new THREE.Raycaster();
     G = new THREE.Group(); S.add(G);
     // Gentle swimming: the rear of the body and the flukes undulate (same motion for points and threads)
+    // + a band of light that travels from the tail to the head every 9 s (6 s of travel, then a short pause)
     const SWIM = `uniform float uTime;
-      vec3 swim(vec3 p){ float k = clamp((p.x - 0.1) / 2.2, 0.0, 1.0); p.y += 0.09 * k * k * sin(uTime * 1.2 - p.x * 1.8); return p; }`;
+      vec3 swim(vec3 p){ float k = clamp((p.x - 0.1) / 2.2, 0.0, 1.0); p.y += 0.09 * k * k * sin(uTime * 1.2 - p.x * 1.8); return p; }
+      float sweep(vec3 p){ float c = mod(uTime, 9.0) / 6.0; if (c > 1.0) return 0.0;
+        float x = mix(2.7, -2.2, c); float d = (p.x - x) / 0.22; return exp(-d * d); }`;
     const mat = new THREE.ShaderMaterial({
       uniforms: { uPR: { value: R.getPixelRatio() }, uDist: { value: 5 }, uTime: { value: 0 } },
       vertexShader: `attribute vec3 acolor; attribute float asize; attribute float aalpha;
         uniform float uPR; uniform float uDist; varying vec3 vC; varying float vA; ${SWIM}
-        void main(){ vC=acolor; vA=aalpha; vec4 mv=modelViewMatrix*vec4(swim(position),1.0);
-          gl_PointSize=asize*uPR*(uDist/-mv.z); gl_Position=projectionMatrix*mv; }`,
+        void main(){ float g = sweep(position);
+          vC = mix(acolor, vec3(1.0), g * 0.65); vA = min(1.0, aalpha + g * 0.55);
+          vec4 mv=modelViewMatrix*vec4(swim(position),1.0);
+          gl_PointSize=asize*(1.0 + g * 0.9)*uPR*(uDist/-mv.z); gl_Position=projectionMatrix*mv; }`,
       fragmentShader: `varying vec3 vC; varying float vA;
         void main(){ float d=length(gl_PointCoord-0.5); if(d>0.5) discard;
-          gl_FragColor=vec4(vC, vA*smoothstep(0.5,0.2,d)); }`,
+          gl_FragColor=vec4(vC, vA*smoothstep(0.5,0.3,d)); }`,
       transparent: true, depthWrite: false,
     });
     pts = new THREE.Points(makeGeometry(), mat); G.add(pts);
     const lineMat = (opacity, color) => new THREE.ShaderMaterial({
       uniforms: { uTime: mat.uniforms.uTime, uOpacity: { value: opacity }, uColor: { value: new THREE.Color(color || '#ffffff') }, uUseColor: { value: color ? 1 : 0 } },
-      vertexShader: `attribute vec3 color; varying vec3 vC; ${SWIM}
-        void main(){ vC=color; gl_Position=projectionMatrix*modelViewMatrix*vec4(swim(position),1.0); }`,
-      fragmentShader: `uniform float uOpacity; uniform vec3 uColor; uniform float uUseColor; varying vec3 vC;
-        void main(){ gl_FragColor=vec4(uUseColor > 0.5 ? uColor : vC, uOpacity); }`,
+      vertexShader: `attribute vec3 color; varying vec3 vC; varying float vG; ${SWIM}
+        void main(){ vC=color; vG=sweep(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(swim(position),1.0); }`,
+      fragmentShader: `uniform float uOpacity; uniform vec3 uColor; uniform float uUseColor; varying vec3 vC; varying float vG;
+        void main(){ vec3 c = uUseColor > 0.5 ? uColor : vC; gl_FragColor=vec4(mix(c, vec3(1.0), vG * 0.6), min(1.0, uOpacity + vG * 0.5)); }`,
       transparent: true, depthWrite: false,
     });
     // Every link between notes, always visible as thin threads (colored by the notes' folders)
@@ -145,7 +150,7 @@ window.Graph = (() => {
   const folderName = (path) => (path.includes('/') ? path.split('/')[0] : 'Notes');
   function build() {
     const names = Object.keys(notes);
-    const needed = Math.max(7000, Math.ceil((names.length * 1.6) / 0.7));
+    const needed = Math.max(16000, Math.ceil((names.length * 1.6) / 0.7));
     if (needed !== N_CLOUD) { N_CLOUD = needed; pts.geometry.dispose(); pts.geometry = makeGeometry(); }
     const counts = {};
     names.forEach((n) => { const f = folderName(notes[n].path); counts[f] = (counts[f] || 0) + 1; });
@@ -287,13 +292,13 @@ window.Graph = (() => {
       const fi = folderOfPt[i]; const c = fi >= 0 && folders[fi] ? folders[fi].color : grey;
       const isNote = nameOfPt[i] !== undefined;
       let s, a;
-      if (!isNote) { s = 2; a = active < 0 ? 0.34 : fi === active ? 0.45 : 0.16; }
-      else if (active < 0) { s = 3.6; a = 0.85; }
-      else if (fi === active) { s = 5; a = 1; }
-      else { s = 1.9; a = 0.22; }
-      if (isNote && lit) { if (lit.has(nameOfPt[i])) { s = 6; a = 1; } else { s = Math.min(s, 2); a = Math.min(a, 0.22); } }
-      if (isNote && !inRange(i)) { a *= 0.12; s = Math.min(s, 2); }
-      if (i === hoverPt) { s = 9; a = 1; }
+      if (!isNote) { s = 1.3; a = active < 0 ? 0.55 : fi === active ? 0.7 : 0.2; }
+      else if (active < 0) { s = 2.4; a = 0.9; }
+      else if (fi === active) { s = 3.4; a = 1; }
+      else { s = 1.3; a = 0.22; }
+      if (isNote && lit) { if (lit.has(nameOfPt[i])) { s = 4.2; a = 1; } else { s = Math.min(s, 1.4); a = Math.min(a, 0.22); } }
+      if (isNote && !inRange(i)) { a *= 0.12; s = Math.min(s, 1.4); }
+      if (i === hoverPt) { s = 6; a = 1; }
       col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; size[i] = s; al[i] = a;
     }
     pts.geometry.attributes.acolor.needsUpdate = pts.geometry.attributes.asize.needsUpdate = pts.geometry.attributes.aalpha.needsUpdate = true;
@@ -393,7 +398,7 @@ window.Graph = (() => {
     const d = zoom * Math.max(7.2 / (C.aspect || 1), 4.2);
     C.position.set(0, d * 0.08, d); C.lookAt(0, 0.05, 0);
     pts.material.uniforms.uDist.value = d;
-    pts.material.uniforms.uTime.value = tt;
+    pts.material.uniforms.uTime.value = performance.now() / 1000; // real time: same speed whatever the frame rate
     G.rotation.set(rx, ry, 0.03 * Math.sin(tt * 0.6)); G.position.set(-0.2, 0.3 + 0.03 * Math.sin(tt * 0.8), 0); G.updateMatrixWorld();
 
     // Hover: the note closest to the cursor
