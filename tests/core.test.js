@@ -251,3 +251,15 @@ test('rBuckets: histogram of results in R', () => {
   ]);
   assert.deepEqual(Core.rBuckets([]), []);
 });
+
+// The release build (tauri-action) reads these files with JSON.parse, which fails on a byte order mark
+test('app manifests are plain JSON without a byte order mark', () => {
+  const fs = require('node:fs'), path = require('node:path');
+  for (const f of ['package.json', 'package-lock.json', 'src-tauri/tauri.conf.json']) {
+    const raw = fs.readFileSync(path.join(__dirname, '..', f));
+    assert.notDeepEqual([...raw.subarray(0, 3)], [0xef, 0xbb, 0xbf], f + ' starts with a byte order mark');
+    assert.doesNotThrow(() => JSON.parse(raw.toString('utf8')), f);
+  }
+  const v = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')).version;
+  assert.equal(JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'src-tauri/tauri.conf.json'), 'utf8')).version, v, 'same version in package.json and tauri.conf.json');
+});
