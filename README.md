@@ -65,7 +65,7 @@ Win rate, total and average R, profit factor, equity curve, and results by setup
 Type any symbol (`BTC`, `EURUSD`, `TSLA`, `gold`, `SPX`, `US30`…) and get a live chart with free data: **Yahoo Finance** (stocks, ETFs, indices, forex, futures, crypto), **Binance** (crypto) and the **ECB** (forex), no API key needed. Charts by [TradingView Lightweight Charts](https://github.com/tradingview/lightweight-charts).
 
 - **Chart:** candles from 5-minute to monthly bars, SMA 20/50/200, EMA 21, Bollinger bands, VWAP, volume, RSI and MACD.
-- **Drawing tools:** levels, trend lines, Fibonacci, long and short positions (entry, stop, 2R target), and a measure tool. Drawings are kept per symbol.
+- **Drawing tools:** levels, trend lines, Fibonacci, long and short positions (entry, stop, target in R), and a measure tool. Click a drawing to select it, drag its lines or ends to move it, give it a name and a color, or delete it with <kbd>Delete</kbd>. Drawings are kept per symbol, and the position sizer follows the position you move.
 - **Quant panel**, the numbers trading desks look at:
   - *Volatility:* realized and Parkinson volatility, ATR, a volatility cone (is today's volatility high or low for this market?), and the expected move.
   - *Risk:* Value at Risk 95% and 99%, expected shortfall, max drawdown, Sharpe and Sortino ratios.

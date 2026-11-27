@@ -3,7 +3,7 @@
    Folder legend (hover / click to highlight) and time histogram (draggable window). */
 window.Graph = (() => {
   const PALETTE = ['#8b7cf6', '#2dd4bf', '#4f8cf7', '#facc15', '#fb923c', '#4ade80', '#f472b6', '#f87171', '#22d3ee', '#a3e635', '#e879f9', '#94a3b8'];
-  let N_CLOUD = 16000; // grows with the vault
+  let N_CLOUD = 22000; // grows with the vault
   let BODY_N = 0;     // the first BODY_N points are the body (skin + pleats); fins and flukes come after
   let R, S, C, G, pts, linkLines, webLines, ray, inited = false, running = false;
   let zoom = 1, ry = 0.35, rx = 0.42, drag = false, moved = 0, lx = 0, ly = 0, auto = true, tt = 0;
@@ -88,7 +88,7 @@ window.Graph = (() => {
     const XMIN = -4.3, SPAN = 9.0;
     const around = (rho, a) => [rho * Math.cos(a) * 0.85, rho * Math.sin(a)];
     // Random clusters (a few dense ones, many light ones) that drift past like clouds of plankton
-    const clusters = Array.from({ length: 70 }, () => {
+    const clusters = Array.from({ length: 120 }, () => {
       const [y, z] = around(0.25 + rnd() * 0.85, rnd() * Math.PI * 2);
       return { c: [XMIN + rnd() * SPAN, y, z], spread: 0.05 + rnd() * 0.22, weight: Math.pow(rnd(), 3) };
     });
@@ -103,7 +103,7 @@ window.Graph = (() => {
       else { x = XMIN + rnd() * SPAN; [y, z] = around(0.8 + rnd() * 1.6, rnd() * Math.PI * 2); } // a few further away
       pos[i * 3] = XMIN + (((x - XMIN) % SPAN) + SPAN) % SPAN; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
       size[i] = 0.8 + rnd() * 1.0;
-      alpha[i] = 0.08 + Math.pow(rnd(), 2) * 0.22;
+      alpha[i] = 0.11 + Math.pow(rnd(), 2) * 0.27; // still dimmer than the whale's own points
       phase[i] = rnd() * Math.PI * 2;
     }
     const geo = new THREE.BufferGeometry();
@@ -173,7 +173,7 @@ window.Graph = (() => {
       transparent: true, depthWrite: false,
     });
     pts = new THREE.Points(makeGeometry(), mat); G.add(pts);
-    G.add(makeDust(16000));
+    G.add(makeDust(40000));
     const lineMat = (opacity, color) => new THREE.ShaderMaterial({
       uniforms: { uTime: mat.uniforms.uTime, uOpacity: { value: opacity }, uColor: { value: new THREE.Color(color || '#ffffff') }, uUseColor: { value: color ? 1 : 0 } },
       vertexShader: `attribute vec3 color; varying vec3 vC; varying float vG; ${SWIM}
@@ -220,7 +220,7 @@ window.Graph = (() => {
   const folderName = (path) => (path.includes('/') ? path.split('/')[0] : 'Notes');
   function build() {
     const names = Object.keys(notes);
-    const needed = Math.max(16000, Math.ceil((names.length * 1.6) / 0.7));
+    const needed = Math.max(22000, Math.ceil((names.length * 1.6) / 0.7));
     if (needed !== N_CLOUD) { N_CLOUD = needed; pts.geometry.dispose(); pts.geometry = makeGeometry(); }
     const counts = {};
     names.forEach((n) => { const f = folderName(notes[n].path); counts[f] = (counts[f] || 0) + 1; });

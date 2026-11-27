@@ -365,4 +365,26 @@ body.desktop #app{height:calc(100vh - 32px)}
 .an-form input{background:var(--bg2);border:1px solid var(--line2);border-radius:6px;padding:5px 7px;color:var(--tx);font-size:13px;outline:none;width:100%}
 .an-form input:focus{border-color:var(--acc)}
 .an-btns{display:flex;gap:6px}
+.an-main.an-ns,.an-main.an-ns *{cursor:ns-resize!important}
+.an-main.an-mv,.an-main.an-mv *{cursor:move!important}
+.an-edit{position:absolute;top:8px;left:10px;z-index:6;display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:calc(100% - 90px);background:#0b0b0bee;border:1px solid var(--line2);border-radius:10px;padding:6px 8px;font-size:12px;color:var(--tx2);box-shadow:0 8px 24px #000a}
+.an-edit.hide{display:none}
+.an-edit b{color:var(--tx);font-weight:600}
+.an-edit input{background:var(--bg2);border:1px solid var(--line2);border-radius:6px;padding:4px 7px;color:var(--tx);font-size:12px;outline:none}
+.an-edit input:focus{border-color:var(--acc)}
+#anEditName{width:190px}
+#anEditRR{width:54px}
+.an-edit-c{display:flex;gap:4px}
+.an-edit-c button{width:14px;height:14px;border-radius:50%;border:2px solid transparent;padding:0}
+.an-edit-c button.on{border-color:#fff}
+.an-edit .an-mini{margin:0}
+.an-dl{display:flex;align-items:center;gap:9px;padding:5px 6px;border-radius:6px;cursor:pointer}
+.an-dl:hover{background:#111}
+.an-dl.on{background:#1d1a2b}
+.an-dl i{width:8px;height:8px;border-radius:50%;flex:none}
+.an-dl span{flex:1;min-width:0;display:flex;flex-direction:column;font-size:13px}
+.an-dl span b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.an-dl small{color:var(--tx3);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.an-dl button{color:var(--tx3);font-size:16px;line-height:1;padding:0 4px;border-radius:4px}
+.an-dl button:hover{color:var(--loss);background:#1a0d0d}
 @media (max-width:1000px){.an-body{grid-template-columns:1fr;grid-template-rows:minmax(420px,1fr) auto}.an-charts{border-right:0}.an-panel{max-height:none}}

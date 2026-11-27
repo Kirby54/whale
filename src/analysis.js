@@ -16,6 +16,9 @@ window.Analysis = (() => {
   let state = { symbol: 'BTC-USD', tf: '1Y', ind: { sma20: true, sma50: true, sma200: false, ema21: false, bb: false, vwap: false, vol: true, rsi: true, macd: false, mc: false }, account: 10000, riskPct: 1, horizon: 20 };
   try { Object.assign(state, JSON.parse(localStorage.getItem('whale-analysis') || '{}')); } catch (e) {}
   const save = () => { try { localStorage.setItem('whale-analysis', JSON.stringify(state)); } catch (e) {} };
+  let selected = null, drag = null, redrawRaf = 0;
+  const DRAW_COLORS = ['#a68bff', '#58a6ff', '#2dd4bf', '#3fb950', '#facc15', '#f0883e', '#f85149', '#e6e6e6'];
+  const uid = () => Math.random().toString(36).slice(2, 10);
   let hzTimer = null, built = false, data = null, bench = null, charts = {}, series = {}, drawings = [], pending = null, tool = null, refreshTimer = null, loading = 0;
 
   /* ---------- Layout ---------- */
@@ -35,6 +38,13 @@ window.Analysis = (() => {
       <div class="an-body">
         <div class="an-charts">
           <div class="an-hint" id="anHint"></div>
+          <div class="an-edit hide" id="anEdit">
+            <b id="anEditT"></b>
+            <input id="anEditName" spellcheck="false" placeholder="Name it, e.g. weekly resistance">
+            <span class="an-edit-c" id="anEditC">${DRAW_COLORS.map((c) => `<button data-c="${c}" style="background:${c}" title="Color"></button>`).join('')}</span>
+            <label id="anEditRRw">Target <input type="number" id="anEditRR" min="0.1" step="0.1"> R</label>
+            <button class="tbtn an-mini" id="anEditDel" title="Delete this drawing (Delete key)">Delete</button>
+          </div>
           <div id="anMain" class="an-pane an-main"></div>
           <div id="anRsi" class="an-pane an-sub"><span class="an-pane-l">RSI 14</span></div>
           <div id="anMacd" class="an-pane an-sub"><span class="an-pane-l">MACD 12 26 9</span></div>
@@ -70,14 +80,47 @@ window.Analysis = (() => {
     series.macd = line(charts.macd, '#58a6ff'); series.macdS = line(charts.macd, '#f0883e');
     // keep the three panes scrolled and zoomed together
     charts.main.timeScale().subscribeVisibleLogicalRangeChange(followMain);
-    // drawing clicks are read from the DOM: the chart's own click event drops a second click made quickly after the first
+    // Mouse on the main chart, read from the DOM (the chart's own click event drops a second click made quickly after the first):
+    // with a tool, clicks place points; without one, a click selects a drawing and dragging a drawing moves it.
     const mainEl = $('anMain'); let down = null;
-    mainEl.addEventListener('mousedown', (e) => (down = { x: e.clientX, y: e.clientY }));
-    mainEl.addEventListener('click', (e) => {
-      if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return; // that was a drag (pan), not a click
-      const r = mainEl.getBoundingClientRect(), x = e.clientX - r.left;
-      onChartClick({ point: { x, y: e.clientY - r.top }, time: charts.main.timeScale().coordinateToTime(x) });
+    const local = (e) => { const r = mainEl.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+    mainEl.addEventListener('mousedown', (e) => {
+      down = { x: e.clientX, y: e.clientY };
+      if (tool || e.button !== 0 || !data) return;
+      const { x, y } = local(e), h = hitTest(x, y);
+      if (!h) return;
+      // capture phase: the chart never sees this press, so it does not pan while a drawing is dragged
+      e.stopPropagation(); e.preventDefault();
+      select(h.d.id);
+      // the starting price and bar are fixed now: the price scale may rescale while the drawing moves
+      drag = { d: h.d, part: h.part, orig: JSON.parse(JSON.stringify(h.d)), p0: series.candle.coordinateToPrice(y), l0: logicalAt(x), moved: false };
+      const move = (ev) => { const q = local(ev); drag.moved = true; applyDrag(q.x, q.y); };
+      const up = () => {
+        document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
+        const moved = drag.moved; drag = null;
+        if (moved) { saveDrawings(); redrawDrawings(); renderPanel(); }
+      };
+      document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+    }, true);
+    mainEl.addEventListener('mousemove', (e) => {
+      const h = drag || tool || !data ? null : hitTest(local(e).x, local(e).y);
+      mainEl.classList.toggle('an-ns', !!h && h.cursor === 'ns');
+      mainEl.classList.toggle('an-mv', !!h && h.cursor === 'mv');
     });
+    mainEl.addEventListener('click', (e) => {
+      if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return; // that was a drag, not a click
+      const { x, y } = local(e);
+      if (tool) return onChartClick({ point: { x, y }, time: charts.main.timeScale().coordinateToTime(x) });
+      const h = data && hitTest(x, y);
+      select(h ? h.d.id : null);
+    });
+    // selected drawing: name, color, target in R, delete
+    $('anEditName').addEventListener('input', (e) => { const d = selDrawing(); if (!d) return; d.name = e.target.value; scheduleRedraw(); saveDrawings(); renderDrawList(); });
+    $('anEditName').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur(); });
+    $('anEditC').querySelectorAll('[data-c]').forEach((b) => (b.onclick = () => { const d = selDrawing(); if (!d) return; d.color = b.dataset.c; saveDrawings(); redrawDrawings(); updateEditor(); renderDrawList(); }));
+    $('anEditRR').addEventListener('input', (e) => { const d = selDrawing(); if (!d || !(+e.target.value > 0)) return; d.rr = +e.target.value; saveDrawings(); scheduleRedraw(); renderDrawList(); });
+    $('anEditRR').addEventListener('change', () => renderPanel());
+    $('anEditDel').onclick = () => removeDrawing(selected);
 
     // controls
     const sym = $('anSym');
@@ -88,7 +131,10 @@ window.Analysis = (() => {
     host.querySelectorAll('[data-tf]').forEach((b) => (b.onclick = () => { state.tf = b.dataset.tf; save(); load(state.symbol); }));
     host.querySelectorAll('[data-ind]').forEach((b) => (b.onclick = () => { state.ind[b.dataset.ind] = !state.ind[b.dataset.ind]; save(); render(); }));
     host.querySelectorAll('[data-tool]').forEach((b) => (b.onclick = () => setTool(tool === b.dataset.tool ? null : b.dataset.tool)));
-    $('anClear').onclick = () => { drawings = []; pending = null; saveDrawings(); redrawDrawings(); };
+    $('anClear').onclick = () => {
+      if (drawings.length && !confirm(`Remove all ${drawings.length} drawings on ${state.symbol}?`)) return;
+      drawings = []; pending = null; selected = null; saveDrawings(); redrawDrawings(); updateEditor(); renderPanel();
+    };
     $('anSave').onclick = saveToJournal;
     $('anAsk').onclick = askAI;
     built = true;
@@ -127,7 +173,7 @@ window.Analysis = (() => {
     try {
       const d = await fetchSeries(sym, state.tf);
       if (my !== loading) return;
-      data = d; bench = null; drawings = loadDrawings(sym); pending = null;
+      data = d; bench = null; drawings = loadDrawings(sym); pending = null; selected = null; updateEditor();
       render(true);
       const b = Market.benchmarkFor(Market.kindOf(sym));
       // beta and correlation only against real prices: a demo benchmark would give meaningless numbers
@@ -193,47 +239,172 @@ window.Analysis = (() => {
     $('anHint').textContent = info ? info[2] + ' · Esc to cancel' : '';
     $('anHint').classList.toggle('show', !!info);
   }
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && tool) setTool(null); });
+  document.addEventListener('keydown', (e) => {
+    if (view !== 'analysis') return;
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
+    if (e.key === 'Escape' && tool) setTool(null);
+    else if (e.key === 'Escape' && selected && !typing) select(null);
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && selected && !typing) { e.preventDefault(); removeDrawing(selected); }
+  });
+  const add = (d) => { d.id = uid(); drawings.push(d); return d; };
   function onChartClick(param) {
     if (!tool || !data || !param.point) return;
     const price = series.candle.coordinateToPrice(param.point.y);
     const time = param.time || data.candles[data.candles.length - 1].time;
     if (price == null) return;
-    if (tool === 'hline') { drawings.push({ type: 'hline', price }); return finish(); }
+    if (tool === 'hline') return finish(add({ type: 'hline', price }));
     if (!pending) { pending = { time, price }; $('anHint').textContent = 'Now click the second point · Esc to cancel'; return; }
     const a = pending, b = { time, price };
-    if (tool === 'trend') drawings.push({ type: 'trend', a, b });
-    if (tool === 'fib') drawings.push({ type: 'fib', from: a.price, to: b.price });
-    if (tool === 'long' || tool === 'short') drawings.push({ type: 'position', side: tool, entry: a.price, stop: b.price });
+    let nd = null;
+    if (tool === 'trend') nd = add({ type: 'trend', a, b });
+    if (tool === 'fib') nd = add({ type: 'fib', from: a.price, to: b.price });
+    if (tool === 'long' || tool === 'short') nd = add({ type: 'position', side: a.price > b.price ? 'long' : 'short', entry: a.price, stop: b.price, rr: 2 });
     if (tool === 'measure') {
       const bars = data.candles.filter((k) => k.time > Math.min(a.time, b.time) && k.time <= Math.max(a.time, b.time)).length;
       $('anHint').textContent = `Move: ${fmt(b.price - a.price)} (${sgn(b.price / a.price - 1)}) over ${bars} bars`;
       pending = null; return;
     }
-    finish();
+    finish(nd);
   }
-  function finish() { pending = null; saveDrawings(); redrawDrawings(); setTool(null); renderPanel(); }
+  // a new drawing is selected right away, so it can be named or moved
+  function finish(nd) { pending = null; setTool(null); if (nd) selected = nd.id; saveDrawings(); redrawDrawings(); updateEditor(); renderPanel(); }
   const dKey = () => 'whale-drawings-' + state.symbol;
-  const loadDrawings = (sym) => { try { return JSON.parse(localStorage.getItem('whale-drawings-' + sym) || '[]'); } catch (e) { return []; } };
+  const loadDrawings = (sym) => {
+    let list = [];
+    try { list = JSON.parse(localStorage.getItem('whale-drawings-' + sym) || '[]'); } catch (e) {}
+    return (Array.isArray(list) ? list : []).map((d) => Object.assign({ id: uid() }, d)); // drawings saved before ids existed get one
+  };
   const saveDrawings = () => { try { localStorage.setItem(dKey(), JSON.stringify(drawings)); } catch (e) {} };
   let priceLines = [], trendSeries = [];
+  const rrOf = (d) => d.rr || 2;
+  const targetOf = (d) => d.entry + (d.side === 'long' ? 1 : -1) * rrOf(d) * Math.abs(d.entry - d.stop);
+  const colorOf = (d) => d.color || (d.type === 'trend' ? '#c4b5ff' : COLORS.draw);
+  const selDrawing = () => drawings.find((d) => d.id === selected) || null;
+  // a trend line is shown only if its points fall in the loaded bars, so a line drawn on daily bars does not stretch a 5-minute chart
+  const trendVisible = (d) => { const c = data.candles, t0 = Math.min(d.a.time, d.b.time), t1 = Math.max(d.a.time, d.b.time); return d.a.time !== d.b.time && t0 >= c[0].time && t1 <= c[c.length - 1].time + 300 * medianStep(); };
   function redrawDrawings() {
     priceLines.forEach((pl) => series.candle.removePriceLine(pl)); priceLines = [];
     trendSeries.forEach((s) => charts.main.removeSeries(s)); trendSeries = [];
+    if (!data) return;
     const pl = (price, color, title, style = 2, width = 1) => priceLines.push(series.candle.createPriceLine({ price, color, title, lineStyle: style, lineWidth: width, axisLabelVisible: true }));
     drawings.forEach((d) => {
-      if (d.type === 'hline') pl(d.price, COLORS.draw, '', 0, 1);
-      if (d.type === 'fib') Quant.fibLevels(d.from, d.to).forEach((l) => pl(l.price, l.ratio === 0.618 || l.ratio === 0.5 ? '#d29922' : '#6b6b6b', 'Fib ' + l.ratio, 2, 1));
+      const sel = d.id === selected, w = sel ? 1 : 0, nm = d.name ? d.name.trim() : '';
+      if (d.type === 'hline') pl(d.price, colorOf(d), nm, 0, 1 + w);
+      if (d.type === 'fib') Quant.fibLevels(d.from, d.to).forEach((l) => pl(l.price, l.ratio === 0.618 || l.ratio === 0.5 ? '#d29922' : sel ? '#a0a0a0' : '#6b6b6b', (l.ratio === 1 && nm ? nm + ' · ' : '') + 'Fib ' + l.ratio, sel ? 0 : 2, 1));
       if (d.type === 'position') {
-        const dir = d.side === 'long' ? 1 : -1, risk = Math.abs(d.entry - d.stop), target = d.entry + dir * 2 * risk;
-        pl(d.entry, '#e6e6e6', (d.side === 'long' ? 'Long' : 'Short') + ' entry', 0, 2); pl(d.stop, COLORS.down, 'Stop −1R', 2, 1); pl(target, COLORS.up, 'Target 2R', 2, 1);
+        pl(d.entry, '#e6e6e6', (nm ? nm + ' · ' : '') + (d.side === 'long' ? 'Long' : 'Short') + ' entry', 0, 2 + w);
+        pl(d.stop, COLORS.down, 'Stop −1R', sel ? 0 : 2, 1 + w);
+        pl(targetOf(d), COLORS.up, `Target ${+rrOf(d).toFixed(2)}R`, sel ? 0 : 2, 1 + w);
       }
-      if (d.type === 'trend' && d.a.time !== d.b.time) {
-        const s = charts.main.addLineSeries({ color: '#c4b5ff', lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+      if (d.type === 'trend' && trendVisible(d)) {
+        const s = charts.main.addLineSeries({ color: colorOf(d), lineWidth: 2 + w, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, pointMarkersVisible: sel, pointMarkersRadius: 4, title: nm });
         s.setData([d.a, d.b].sort((x, y) => x.time - y.time).map((p) => ({ time: p.time, value: p.price })));
         trendSeries.push(s);
       }
     });
+  }
+  const scheduleRedraw = () => { if (!redrawRaf) redrawRaf = requestAnimationFrame(() => { redrawRaf = 0; redrawDrawings(); }); };
+
+  /* ---------- Editing drawings: hit testing, dragging, selection ---------- */
+  // Bar index <-> time, also before and after the loaded bars (a trend line can end in the future)
+  function idxOfTime(t) {
+    const c = data.candles, n = c.length, st = medianStep();
+    if (t > c[n - 1].time) return n - 1 + Math.round((t - c[n - 1].time) / st);
+    if (t < c[0].time) return Math.round((t - c[0].time) / st);
+    let lo = 0, hi = n - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (c[m].time < t) lo = m + 1; else hi = m; } return lo;
+  }
+  function timeOfIdx(i) { const c = data.candles, n = c.length; return i < 0 ? c[0].time + i * medianStep() : i >= n ? c[n - 1].time + (i - n + 1) * medianStep() : c[i].time; }
+  const logicalAt = (x) => charts.main.timeScale().coordinateToLogical(x);
+  const segDist = (x, y, ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy, t = L ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L)) : 0; return Math.hypot(x - ax - t * dx, y - ay - t * dy); };
+  // The drawing part under the mouse (closest one), or null
+  function hitTest(x, y) {
+    if (y > $('anMain').clientHeight - charts.main.timeScale().height()) return null; // on the time axis
+    const Y = (p) => series.candle.priceToCoordinate(p), X = (t) => charts.main.timeScale().timeToCoordinate(t);
+    let best = null;
+    const consider = (dist, h) => { if (dist <= h.tol && (!best || dist < best.dist)) best = Object.assign(h, { dist }); };
+    const level = (d, price, part) => { const yy = Y(price); if (yy != null) consider(Math.abs(y - yy), { d, part, cursor: 'ns', tol: 5 }); };
+    drawings.forEach((d) => {
+      if (d.type === 'hline') level(d, d.price, 'price');
+      if (d.type === 'fib') Quant.fibLevels(d.from, d.to).forEach((l) => level(d, l.price, l.ratio === 1 ? 'from' : l.ratio === 0 ? 'to' : 'fib'));
+      if (d.type === 'position') { level(d, d.entry, 'entry'); level(d, d.stop, 'stop'); level(d, targetOf(d), 'target'); }
+      if (d.type === 'trend' && trendVisible(d)) {
+        const ax = X(d.a.time), ay = Y(d.a.price), bx = X(d.b.time), by = Y(d.b.price);
+        if ([ax, ay, bx, by].some((v) => v == null)) return;
+        consider(Math.hypot(x - ax, y - ay) - 2, { d, part: 'a', cursor: 'mv', tol: 7 }); // ends win over the line itself
+        consider(Math.hypot(x - bx, y - by) - 2, { d, part: 'b', cursor: 'mv', tol: 7 });
+        consider(segDist(x, y, ax, ay, bx, by), { d, part: 'line', cursor: 'mv', tol: 5 });
+      }
+    });
+    return best;
+  }
+  function applyDrag(x, y) {
+    const { d, part, orig, p0, l0 } = drag;
+    const p = series.candle.coordinateToPrice(y);
+    if (p == null || p0 == null) return;
+    const dp = p - p0;
+    if (part === 'price') d.price = p;
+    else if (part === 'from') d.from = p;
+    else if (part === 'to') d.to = p;
+    else if (part === 'fib') { d.from = orig.from + dp; d.to = orig.to + dp; }
+    else if (part === 'entry') { d.entry = orig.entry + dp; d.stop = orig.stop + dp; } // the entry moves the whole position
+    else if (part === 'stop') { if (p !== d.entry) { d.stop = p; d.side = p < d.entry ? 'long' : 'short'; } }
+    else if (part === 'target') { const risk = Math.abs(d.entry - d.stop), dir = d.side === 'long' ? 1 : -1; if (risk) d.rr = Math.max(0.1, Math.round((dir * (p - d.entry) / risk) * 10) / 10); }
+    else if (part === 'a' || part === 'b') { const l = logicalAt(x); if (l != null) d[part] = { time: timeOfIdx(Math.round(l)), price: p }; }
+    else if (part === 'line') {
+      const l = logicalAt(x), di = l != null && l0 != null ? Math.round(l - l0) : 0;
+      ['a', 'b'].forEach((k) => (d[k] = { time: timeOfIdx(idxOfTime(orig[k].time) + di), price: orig[k].price + dp }));
+    }
+    scheduleRedraw();
+    if (d.type === 'position') syncSizer(d);
+    updateEditor(); renderDrawList();
+  }
+  function select(id) {
+    if (id === selected) return;
+    selected = id; redrawDrawings(); updateEditor(); renderDrawList();
+    const d = selDrawing(); if (d && d.type === 'position') syncSizer(d);
+  }
+  function removeDrawing(id) {
+    if (!id) return;
+    drawings = drawings.filter((d) => d.id !== id);
+    if (selected === id) selected = null;
+    saveDrawings(); redrawDrawings(); updateEditor(); renderPanel();
+  }
+  const TYPE_NAME = { hline: 'Level', fib: 'Fibonacci', position: 'Position', trend: 'Trend line' };
+  function updateEditor() {
+    const box = $('anEdit'); if (!box) return;
+    const d = selDrawing(); box.classList.toggle('hide', !d); if (!d) return;
+    $('anEditT').textContent = d.type === 'position' ? (d.side === 'long' ? 'Long' : 'Short') : TYPE_NAME[d.type];
+    if (document.activeElement !== $('anEditName')) $('anEditName').value = d.name || '';
+    $('anEditC').style.display = d.type === 'hline' || d.type === 'trend' ? '' : 'none';
+    $('anEditC').querySelectorAll('[data-c]').forEach((b) => b.classList.toggle('on', colorOf(d) === b.dataset.c));
+    $('anEditRRw').style.display = d.type === 'position' ? '' : 'none';
+    if (d.type === 'position' && document.activeElement !== $('anEditRR')) $('anEditRR').value = rrOf(d);
+  }
+  // What a drawing is, in one line (drawings list, AI summary)
+  function describe(d) {
+    if (d.type === 'hline') return fmt(d.price);
+    if (d.type === 'fib') return `${fmt(d.from)} → ${fmt(d.to)}`;
+    if (d.type === 'position') return `entry ${fmt(d.entry)} · stop ${fmt(d.stop)} · target ${fmt(targetOf(d))} (${+rrOf(d).toFixed(2)}R)`;
+    return `${fmt(d.a.price)} → ${fmt(d.b.price)}`;
+  }
+  function renderDrawList() {
+    const box = $('anDl'); if (!box) return;
+    if (!drawings.length) { box.innerHTML = '<p class="empty">Use the tools above the chart to draw. Click a drawing to select it, drag it to move it.</p>'; return; }
+    box.innerHTML = drawings.map((d) => `<div class="an-dl${d.id === selected ? ' on' : ''}" data-id="${d.id}">
+        <i style="background:${d.type === 'position' ? (d.side === 'long' ? COLORS.up : COLORS.down) : d.type === 'fib' ? '#d29922' : colorOf(d)}"></i>
+        <span><b>${esc(d.name || (d.type === 'position' ? (d.side === 'long' ? 'Long' : 'Short') : TYPE_NAME[d.type]))}</b><small>${esc(describe(d))}</small></span>
+        <button data-del="${d.id}" title="Delete">×</button></div>`).join('');
+    box.querySelectorAll('.an-dl').forEach((el) => (el.onclick = (e) => { if (e.target.dataset.del) removeDrawing(e.target.dataset.del); else select(el.dataset.id); }));
+  }
+  // Position sizer follows the selected (or dragged) position
+  function syncSizer(d) {
+    const e = $('anEntry'), s = $('anStop'); if (!e || !s) return;
+    e.value = +d.entry.toPrecision(8); s.value = +d.stop.toPrecision(8); recalcSizer();
+  }
+  function recalcSizer() {
+    state.account = +$('anAcc').value || 0; state.riskPct = +$('anRisk').value || 0; save();
+    const e = +$('anEntry').value, s = +$('anStop').value;
+    $('anPs').innerHTML = psHtml(Quant.positionSize(state.account, state.riskPct, e, s), e, s);
   }
 
   /* ---------- Quant panel ---------- */
@@ -256,8 +427,8 @@ window.Analysis = (() => {
     else if (bench === false) rel = '<p class="empty">The benchmark could not be loaded.</p>';
     else if (bench) { const ar = Quant.alignedReturns(c, bench.candles); rel = ar.n > 20 ? kv([['Benchmark', esc(bench.meta.symbol)], ['Beta', fmt(Quant.beta(ar.a, ar.b), 2)], ['Correlation', fmt(Quant.correlation(ar.a, ar.b), 2)], ['Common bars', ar.n]]) : '<p class="empty">Not enough common bars with the benchmark.</p>'; }
     else if (Market.benchmarkFor(kind) === data.meta.symbol) rel = '<p class="empty">This is the benchmark itself.</p>';
-    // position sizer (from the last drawn position, else 1.5 ATR stop)
-    const pos = [...drawings].reverse().find((d) => d.type === 'position');
+    // position sizer (from the selected position, else the last drawn one, else a 1.5 ATR stop)
+    const pos = (selDrawing() && selDrawing().type === 'position' && selDrawing()) || [...drawings].reverse().find((d) => d.type === 'position');
     const entry = pos ? pos.entry : last, stop = pos ? pos.stop : last - 1.5 * (atr || last * 0.02);
     const ps = Quant.positionSize(state.account, state.riskPct, entry, stop);
     const st = tradeStats(), wins = st.names.map((n) => rOf(parse(n))).filter((x) => x > 0), losses = st.names.map((n) => rOf(parse(n))).filter((x) => x < 0);
@@ -266,6 +437,7 @@ window.Analysis = (() => {
     const daily = Market.tf(state.tf).interval === '1d', wd = daily ? Quant.weekdayReturns(c) : null;
 
     $('anPanel').innerHTML = `
+      ${sec('Drawings', '<div id="anDl"></div>')}
       ${sec('Snapshot', kv([['Last', fmt(last)], ['Period high / low', `${fmt(hi)} / ${fmt(lo)}`], ['Position in range', pct((last - lo) / (hi - lo || 1), 0)], ['Pivot (P · R1 · S1)', `${fmt(pv.p)} · ${fmt(pv.r1)} · ${fmt(pv.s1)}`]]))}
       ${sec('Volatility', kv([['Realized (annualized)', pct(vol, 1)], ['Parkinson (high-low)', data.closeOnly ? 'needs intraday highs and lows' : pct(pk, 1)], ['ATR 14', `${fmt(atr)} · ${pct(atr / last, 2)}`], ['Vol regime (20 bars)', cur20 ? `${Math.round(cur20.rank * 100)}th percentile` : '—']]) + coneSvg(cone), 'How much the price moves. Percentile = today vs its own history (vol cone).')}
       ${sec('Expected move ±1σ', kv([['Next bar', `±${fmt(em(1))} (${pct(em(1) / last)})`], ['5 bars', `±${fmt(em(5))} (${pct(em(5) / last)})`], ['20 bars', `±${fmt(em(20))} (${pct(em(20) / last)})`]]), 'About 68% of moves stay inside this range if volatility holds.')}
@@ -281,17 +453,17 @@ window.Analysis = (() => {
           <label>Entry<input type="number" step="any" id="anEntry" value="${+entry.toPrecision(8)}"></label>
           <label>Stop<input type="number" step="any" id="anStop" value="${+stop.toPrecision(8)}"></label></div>
           <div id="anPs">${psHtml(ps, entry, stop)}</div>
-          <div class="note">${isFinite(k) ? `Your journal's Kelly fraction: ${pct(k, 1)} of capital (half-Kelly ${pct(k / 2, 1)}).` : 'Kelly fraction appears once your journal has winning and losing trades.'} ${pos ? 'Prices taken from your last Long/Short drawing.' : 'Stop defaults to 1.5 ATR. Draw a Long/Short to set it.'}</div>
+          <div class="note">${isFinite(k) ? `Your journal's Kelly fraction: ${pct(k, 1)} of capital (half-Kelly ${pct(k / 2, 1)}).` : 'Kelly fraction appears once your journal has winning and losing trades.'} ${pos ? 'Prices follow your Long/Short drawing: drag its lines on the chart.' : 'Stop defaults to 1.5 ATR. Draw a Long/Short to set it.'}</div>
           <div class="an-btns"><button class="tbtn an-mini" id="anPsDraw">Draw on chart</button><button class="tbtn an-mini ai" id="anPsTrade">Create trade note</button></div>`)}
       ${wd ? sec('Seasonality by weekday', wdSvg(wd), 'Average daily return by weekday over the period.') : ''}`;
 
     const on = (id, ev, f) => { const el = $(id); if (el) el[ev] = f; };
-    on('anVpLines', 'onclick', () => { drawings.push({ type: 'hline', price: vp.poc }, { type: 'hline', price: vp.vah }, { type: 'hline', price: vp.val }); saveDrawings(); redrawDrawings(); });
+    on('anVpLines', 'onclick', () => { add({ type: 'hline', price: vp.poc, name: 'POC', color: '#facc15' }); add({ type: 'hline', price: vp.vah, name: 'VAH', color: '#8b7cf6' }); add({ type: 'hline', price: vp.val, name: 'VAL', color: '#8b7cf6' }); saveDrawings(); redrawDrawings(); renderDrawList(); });
     on('anHz', 'oninput', (e) => { state.horizon = +e.target.value; save(); clearTimeout(hzTimer); hzTimer = setTimeout(() => (state.ind.mc ? render() : renderPanel()), 150); });
     on('anMcToggle', 'onclick', () => { state.ind.mc = !state.ind.mc; save(); render(); });
-    const recalc = () => { state.account = +$('anAcc').value || 0; state.riskPct = +$('anRisk').value || 0; save(); $('anPs').innerHTML = psHtml(Quant.positionSize(state.account, state.riskPct, +$('anEntry').value, +$('anStop').value), +$('anEntry').value, +$('anStop').value); };
-    ['anAcc', 'anRisk', 'anEntry', 'anStop'].forEach((id) => on(id, 'oninput', recalc));
-    on('anPsDraw', 'onclick', () => { const e = +$('anEntry').value, s = +$('anStop').value; drawings.push({ type: 'position', side: s < e ? 'long' : 'short', entry: e, stop: s }); saveDrawings(); redrawDrawings(); });
+    ['anAcc', 'anRisk', 'anEntry', 'anStop'].forEach((id) => on(id, 'oninput', recalcSizer));
+    on('anPsDraw', 'onclick', () => { const e = +$('anEntry').value, s = +$('anStop').value; if (!isFinite(e) || !isFinite(s) || e === s) return; finish(add({ type: 'position', side: s < e ? 'long' : 'short', entry: e, stop: s, rr: 2 })); });
+    renderDrawList();
     on('anPsTrade', 'onclick', () => createTrade(+$('anEntry').value, +$('anStop').value));
   }
   const sec = (title, body, help) => `<section class="an-sec"><h3>${title}</h3>${body}${help ? `<div class="note">${help}</div>` : ''}</section>`;
@@ -356,7 +528,7 @@ window.Analysis = (() => {
       `VaR95 ${pct(Quant.valueAtRisk(r, 0.95))}, skew ${fmt(Quant.skewness(r), 2)}, excess kurtosis ${fmt(Quant.kurtosis(r), 2)}`,
       `Hurst ${fmt(Quant.hurst(closes), 2)}, autocorr ${fmt(Quant.autocorr(r, 1), 3)}, z-score(20) ${fmt(Quant.zscore(closes, 20), 2)}, RSI14 ${fmt(Quant.rsi(closes, 14).slice(-1)[0], 1)}`,
       `SMA20 ${fmt(Quant.sma(closes, 20).slice(-1)[0])}, SMA50 ${fmt(Quant.sma(closes, 50).slice(-1)[0])}, SMA200 ${fmt(Quant.sma(closes, 200).slice(-1)[0])}`,
-      drawings.length ? `My levels: ${drawings.map((d) => d.type === 'hline' ? 'level ' + fmt(d.price) : d.type === 'position' ? `${d.side} entry ${fmt(d.entry)} stop ${fmt(d.stop)}` : d.type === 'fib' ? `fib ${fmt(d.from)}→${fmt(d.to)}` : 'trend line').join('; ')}` : '',
+      drawings.length ? `My drawings: ${drawings.map((d) => `${d.name ? `"${d.name}" ` : ''}${d.type === 'position' ? d.side : TYPE_NAME[d.type].toLowerCase()} ${describe(d)}`).join('; ')}` : '',
     ].filter(Boolean).join('\n');
   }
   function askAI() {
