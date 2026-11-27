@@ -7,7 +7,15 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="titlebar" data-tauri-drag-region>
+<!-- Liquid lens for the glass on the brain (backdrop-filter: url(#liquid-lens)); a plain blur is the fallback -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <filter id="liquid-lens" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency="0.008 0.012" numOctaves="2" seed="7" result="noise"/>
+    <feGaussianBlur in="noise" stdDeviation="2" result="soft"/>
+    <feDisplacementMap in="SourceGraphic" in2="soft" scale="34" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+<div id="titlebar" class="glass-bar" data-tauri-drag-region>
   <div class="tb-title" data-tauri-drag-region>
     <img class="tb-logo" data-logo src="img/logo-a.svg" alt="" data-tauri-drag-region>
     <span data-tauri-drag-region>Whale</span>
@@ -19,7 +27,7 @@
   </div>
 </div>
 <div id="app">
-  <nav id="nav">
+  <nav id="nav" class="glass-bar">
     <div id="brand"><img id="brandLogo" data-logo src="img/logo-a.svg" alt=""><span class="b1">whale</span><span class="b2">journal</span></div>
     <div id="brandbar"></div>
     <button id="openPalette"><span>Ask or search</span><kbd>Ctrl K</kbd></button>
@@ -34,7 +42,7 @@
       <button class="nl" id="btnImport">Add</button>
       <button class="nl" id="btnMore">More</button>
     </div>
-    <div id="more" class="hide">
+    <div id="more" class="glass-menu hide">
       <button class="mi" id="btnAsk">Ask the AI</button>
       <button class="mi" id="btnDash">Dashboard</button>
       <button class="mi" id="btnTimeline">Timeline</button>
@@ -50,14 +58,14 @@
     <div id="aistatus">NO AI RUNNING NOW</div>
   </nav>
 
-  <aside id="side">
+  <aside id="side" class="glass-menu">
     <div id="sidehead"><span id="vault" title=""></span></div>
     <input id="search" placeholder="Filter notes…" autocomplete="off">
     <div id="tree"></div>
   </aside>
 
   <main id="main">
-    <div id="tabbar">
+    <div id="tabbar" class="glass-bar">
       <div id="crumb"></div>
       <button class="tbtn ai" id="btnClassify" title="The AI fills in the type, tags, properties and links">✦ Classify with AI</button>
       <button class="tbtn" id="btnMode" title="Ctrl+E">Edit</button>
@@ -74,10 +82,10 @@
       </section>
       <section class="view" id="graphview">
         <canvas id="gcanvas"></canvas>
-        <div id="gtip"></div>
-        <div id="glegend"></div>
-        <button id="apOpen" class="hide">✦ Your AI</button>
-        <div id="ghistwrap"><canvas id="ghist"></canvas><div id="ghistlabel"></div></div>
+        <div id="gtip" class="glass-menu"></div>
+        <div id="glegend" class="glass"></div>
+        <button id="apOpen" class="glass hide">✦ Your AI</button>
+        <div id="ghistwrap" class="glass"><canvas id="ghist"></canvas><div id="ghistlabel"></div></div>
       </section>
       <section class="view" id="dashview"><div id="dash"></div></section>
       <section class="view" id="analysisview"><div id="analysis"></div></section>
@@ -97,7 +105,7 @@
     </div>
   </main>
 
-  <aside id="aipanel" class="hide">
+  <aside id="aipanel" class="glass-menu hide">
     <div class="aph"><span>Your AI</span><button id="apClose" title="Close" aria-label="Close the panel">×</button></div>
     <div id="apchat"></div>
     <form id="apform">
@@ -106,7 +114,7 @@
     </form>
   </aside>
 
-  <aside id="right">
+  <aside id="right" class="glass-menu">
     <div class="rh"><span>Backlinks</span><span id="blc"></span></div>
     <div id="backlinks"></div>
     <div class="rh" style="margin-top:18px"><span>Outgoing links</span><span id="olc"></span></div>
@@ -114,12 +122,13 @@
   </aside>
 </div>
 <div id="palette" class="modal hide">
-  <div class="pbox">
+  <div class="pbox glass-menu">
     <input id="pinput" placeholder="Search a note, or ask a question…" autocomplete="off" spellcheck="false">
     <div id="presults"></div>
   </div>
 </div>
-<div id="modal" class="modal hide"><div class="mbox" id="mbox"></div></div>
+<div id="modal" class="modal hide"><div class="mbox glass" id="mbox" role="dialog" aria-modal="true"></div></div>
+<script src="theme.js"></script>
 <script src="vendor/three.min.js"></script>
 <script src="vendor/editor.bundle.js"></script>
 <script src="vendor/lightweight-charts.standalone.production.js"></script>

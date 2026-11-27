@@ -3,14 +3,14 @@
    Screener and Correlation views (desk.js). Charts: TradingView Lightweight Charts (Apache-2.0). */
 window.Analysis = (() => {
   const LC = window.LightweightCharts;
-  const COLORS = { up: '#3fb950', down: '#f85149', sma20: '#6b9cf0', sma50: '#d0a93c', sma200: '#c084fc', ema21: '#38c2b0', bb: '#8b7cf6', vwap: '#e8c547', mc: '#a89bf5', draw: '#a68bff' };
+  const COLORS = { up: Theme.c.up, down: Theme.c.down, sma20: Theme.c.blue, sma50: Theme.c.warn, sma200: Theme.c.violet, ema21: Theme.c.teal, bb: Theme.c.accent, vwap: Theme.c.yellow, mc: Theme.c.accent2, draw: Theme.c.accent2 };
   const IND = [
     ['sma20', 'SMA 20'], ['sma50', 'SMA 50'], ['sma200', 'SMA 200'], ['ema21', 'EMA 21'], ['bb', 'Bollinger bands'], ['vwap', 'VWAP'],
     ['vol', 'Volume'], ['rsi', 'RSI 14'], ['macd', 'MACD'], ['mc', 'Monte Carlo cone'],
   ];
-  const IND_COLOR = { sma20: COLORS.sma20, sma50: COLORS.sma50, sma200: COLORS.sma200, ema21: COLORS.ema21, bb: COLORS.bb, vwap: COLORS.vwap, vol: '#555', rsi: '#a89bf5', macd: '#6b9cf0', mc: COLORS.mc };
+  const IND_COLOR = { sma20: COLORS.sma20, sma50: COLORS.sma50, sma200: COLORS.sma200, ema21: COLORS.ema21, bb: COLORS.bb, vwap: COLORS.vwap, vol: Theme.c.text2, rsi: Theme.c.accent2, macd: Theme.c.blue, mc: COLORS.mc };
   const TOOLS = [['hline', 'Level', 'Click a price to draw a horizontal level'], ['trend', 'Trend line', 'Click two points'], ['fib', 'Fibonacci', 'Click the swing start, then the swing end'], ['long', 'Long', 'Click the entry, then the stop'], ['short', 'Short', 'Click the entry, then the stop'], ['measure', 'Measure', 'Click two points to measure the move']];
-  const TYPES = [['area', 'Area'], ['line', 'Line'], ['candles', 'Candles'], ['bars', 'Bars (OHLC)']];
+  const TYPES = [['candles', 'Candles'], ['bars', 'Bars'], ['area', 'Area'], ['line', 'Line']];
   const TABS = [['chart', 'Chart', 'GP'], ['company', 'Company', 'DES'], ['news', 'News', 'N'], ['grid', 'Grid', 'GRID'], ['macro', 'Macro', 'ECO'], ['screener', 'Screener', 'EQS'], ['corr', 'Correlation', 'CORR']];
   const svg = (body) => `<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
   const ICON = {
@@ -33,7 +33,7 @@ window.Analysis = (() => {
   const sgn = (v, d = 2) => (v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(d) + '%');
   // 478.8B, 1.2T, 350M (company figures)
   const fmtBig = (v) => { if (v == null || !isFinite(v)) return '—'; const a = Math.abs(v); for (const [n, u] of [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']]) if (a >= n) return (v / n).toFixed(a >= n * 100 ? 0 : 1) + u; return fmt(v, 2); };
-  const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`;
+  const rgba = Theme.alpha; // colors come from the theme tokens (style.css)
   // A small sparkline for lists and tiles
   function sparkSvg(vals, w = 84, h = 24, color) {
     const v = (vals || []).filter((x) => x != null && isFinite(x)); if (v.length < 2) return `<svg width="${w}" height="${h}"></svg>`;
@@ -42,11 +42,13 @@ window.Analysis = (() => {
     return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" class="spark"><polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
   }
 
-  let state = { symbol: 'BTC-USD', tf: '1Y', type: 'area', tab: 'chart', ptab: 'watch', newsScope: 'symbol', ind: { sma20: false, sma50: true, sma200: false, ema21: false, bb: false, vwap: false, vol: true, rsi: false, macd: false, mc: false }, account: 10000, riskPct: 1, horizon: 20 };
+  let state = { symbol: 'BTC-USD', tf: '1Y', type: 'candles', tab: 'chart', ptab: 'watch', newsScope: 'symbol', ind: { sma20: false, sma50: true, sma200: false, ema21: false, bb: false, vwap: false, vol: true, rsi: false, macd: false, mc: false }, account: 10000, riskPct: 1, horizon: 20 };
   try { Object.assign(state, JSON.parse(localStorage.getItem('whale-analysis') || '{}')); } catch (e) {}
+  // candles became the default chart: switch once, the user's later choice is kept
+  if (!state.candlesDefault) { state.type = 'candles'; state.candlesDefault = true; }
   const save = () => { try { localStorage.setItem('whale-analysis', JSON.stringify(state)); } catch (e) {} };
   let selected = null, drag = null, redrawRaf = 0, panelDirty = true, dataKeys = { fred: false, polygon: false, finnhub: false }, live = null;
-  const DRAW_COLORS = ['#a68bff', '#58a6ff', '#2dd4bf', '#3fb950', '#facc15', '#f0883e', '#f85149', '#e6e6e6'];
+  const DRAW_COLORS = [Theme.c.accent2, Theme.c.blue, Theme.c.teal, Theme.c.up, Theme.c.yellow, Theme.c.orange, Theme.c.down, Theme.c.text];
   const uid = () => Math.random().toString(36).slice(2, 10);
   let hzTimer = null, built = false, data = null, bench = null, charts = {}, series = {}, drawings = [], pending = null, tool = null, refreshTimer = null, loading = 0;
 
@@ -54,8 +56,8 @@ window.Analysis = (() => {
   function build() {
     const host = $('analysis');
     host.innerHTML = `
-      <div class="an-head">
-        <div class="an-search">${ICON.search}<input id="anSym" spellcheck="false" autocomplete="off" placeholder="Symbol or command: TSLA, EURUSD, AAPL DES, ECO, BTC ALRT 70000"><div id="anSugg" class="an-sugg hide"></div></div>
+      <div class="an-head glass-bar">
+        <div class="an-search">${ICON.search}<input id="anSym" spellcheck="false" autocomplete="off" placeholder="Symbol or command: TSLA, EURUSD, AAPL DES, ECO, BTC ALRT 70000"><div id="anSugg" class="an-sugg glass-menu hide"></div></div>
         <nav class="an-tabs">${TABS.map(([k, l, code]) => `<button data-tab="${k}" title="${l} (${code})">${l}<small>${code}</small></button>`).join('')}</nav>
         <div class="an-actions"><button class="an-ghost ai" id="anAsk">✦ Ask AI</button><button class="an-ghost" id="anSave">Save to journal</button></div>
       </div>
@@ -65,13 +67,13 @@ window.Analysis = (() => {
             <div class="an-quote" id="anQuote"></div>
             <div class="an-ctrl">
               <div class="an-seg">${Market.TIMEFRAMES.map((t) => `<button data-tf="${t.id}">${t.id}</button>`).join('')}</div>
-              <div class="an-seg an-seg-i">${TYPES.map(([k, l]) => `<button data-ctype="${k}" title="${l}" aria-label="${l} chart">${ICON[k]}</button>`).join('')}</div>
+              <div class="an-seg an-seg-i">${TYPES.map(([k, l]) => `<button data-ctype="${k}" title="${l} chart">${ICON[k]}<span>${l}</span></button>`).join('')}</div>
               <div class="an-menu"><button class="an-ghost" id="anIndBtn">Indicators <span id="anIndN"></span></button>
-                <div class="an-pop hide" id="anIndPop">${IND.map(([k, l]) => `<button class="an-pi" data-ind="${k}"><i style="background:${IND_COLOR[k]}"></i><span>${l}</span><b></b></button>`).join('')}</div></div>
+                <div class="an-pop glass-menu hide" id="anIndPop">${IND.map(([k, l]) => `<button class="an-pi" data-ind="${k}"><i style="background:${IND_COLOR[k]}"></i><span>${l}</span><b></b></button>`).join('')}</div></div>
             </div>
           </div>
           <div class="an-body">
-            <div class="an-rail">
+            <div class="an-rail glass-bar">
               <button data-tool="" title="Select and move drawings (Esc)" aria-label="Select and move drawings">${ICON.select}</button><span class="an-rail-sep"></span>
               ${TOOLS.map(([k, l, h]) => `<button data-tool="${k}" title="${l}: ${h}" aria-label="${l}">${ICON[k]}</button>`).join('')}<span class="an-rail-sep"></span>
               <button id="anClear" title="Remove all drawings on this symbol" aria-label="Remove all drawings">${ICON.trash}</button>
@@ -79,7 +81,7 @@ window.Analysis = (() => {
             <div class="an-charts">
               <div class="an-legend" id="anLegend"></div>
               <div class="an-hint" id="anHint"></div>
-              <div class="an-edit hide" id="anEdit">
+              <div class="an-edit glass-menu hide" id="anEdit">
                 <b id="anEditT"></b>
                 <input id="anEditName" spellcheck="false" placeholder="Name it, e.g. weekly resistance">
                 <span class="an-edit-c" id="anEditC">${DRAW_COLORS.map((c) => `<button data-c="${c}" style="background:${c}" title="Color"></button>`).join('')}</span>
@@ -92,7 +94,7 @@ window.Analysis = (() => {
               <div id="anMacd" class="an-pane an-lower"><span class="an-pane-l">MACD 12 26 9</span></div>
               <div class="an-source"><span id="anSource"></span><a class="an-attr" id="anAttr">Charts by TradingView</a></div>
             </div>
-            <aside class="an-panel">
+            <aside class="an-panel glass-menu">
               <div class="an-ptabs"><button data-ptab="watch">Watchlist</button><button data-ptab="stats">Stats</button><button data-ptab="draw">Drawings</button></div>
               <div class="an-pbody" data-pbody="watch" id="anPWatch"></div>
               <div class="an-pbody" data-pbody="stats" id="anPanel"></div>
@@ -105,14 +107,14 @@ window.Analysis = (() => {
     const opts = (extra) => Object.assign({
       autoSize: true,
       localization: { locale: LOCALE, priceFormatter: (p) => fmt(p) }, // the app's language, and prices like 108,000
-      layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#8a91a8', fontFamily: 'system-ui, -apple-system, Segoe UI, sans-serif', fontSize: 11, attributionLogo: false },
-      grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
+      layout: { background: { type: 'solid', color: 'transparent' }, textColor: Theme.c.text2, fontFamily: 'system-ui, -apple-system, Segoe UI, sans-serif', fontSize: 11, attributionLogo: false },
+      grid: { vertLines: { visible: false }, horzLines: { color: Theme.c.grid } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.1, bottom: 0.08 } },
       timeScale: { borderVisible: false, rightOffset: 4, barSpacing: 6, minBarSpacing: 0.4 },
       crosshair: {
         mode: LC.CrosshairMode.Normal,
-        vertLine: { color: 'rgba(255,255,255,0.22)', width: 1, style: 3, labelBackgroundColor: '#1b1f33' },
-        horzLine: { color: 'rgba(255,255,255,0.22)', width: 1, style: 3, labelBackgroundColor: '#1b1f33' },
+        vertLine: { color: Theme.c.crosshair, width: 1, style: 3, labelBackgroundColor: Theme.c.chartLabel },
+        horzLine: { color: Theme.c.crosshair, width: 1, style: 3, labelBackgroundColor: Theme.c.chartLabel },
       },
     }, extra || {});
     charts.main = LC.createChart($('anMain'), opts());
@@ -128,10 +130,10 @@ window.Analysis = (() => {
     series.vwap = line(charts.main, COLORS.vwap);
     series.mc95 = line(charts.main, COLORS.mc, { lineStyle: 2 }); series.mc50 = line(charts.main, COLORS.mc); series.mc5 = line(charts.main, COLORS.mc, { lineStyle: 2 });
     makePriceSeries();
-    series.rsi = line(charts.rsi, '#a89bf5', { lastValueVisible: true, lineWidth: 1.5 });
-    [70, 30].forEach((v) => series.rsi.createPriceLine({ price: v, color: '#2a2a2a', lineWidth: 1, lineStyle: 2, axisLabelVisible: false }));
+    series.rsi = line(charts.rsi, Theme.c.accent2, { lastValueVisible: true, lineWidth: 1.5 });
+    [70, 30].forEach((v) => series.rsi.createPriceLine({ price: v, color: Theme.c.line2, lineWidth: 1, lineStyle: 2, axisLabelVisible: false }));
     series.macdH = charts.macd.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false });
-    series.macd = line(charts.macd, '#6b9cf0', { lineWidth: 1.5 }); series.macdS = line(charts.macd, '#e0894a', { lineWidth: 1.5 });
+    series.macd = line(charts.macd, Theme.c.blue, { lineWidth: 1.5 }); series.macdS = line(charts.macd, Theme.c.orange, { lineWidth: 1.5 });
     charts.main.subscribeCrosshairMove((p) => renderLegend(p && p.time != null ? p.time : null));
     // keep the three panes scrolled and zoomed together
     charts.main.timeScale().subscribeVisibleLogicalRangeChange(followMain);
@@ -330,7 +332,8 @@ window.Analysis = (() => {
   function makePriceSeries() {
     if (series.price) { priceLines.forEach((pl) => series.price.removePriceLine(pl)); priceLines = []; charts.main.removeSeries(series.price); }
     const t = state.type, base = { priceLineVisible: true, priceLineWidth: 1, priceLineStyle: 2, lastValueVisible: true };
-    if (t === 'candles') series.price = charts.main.addCandlestickSeries(Object.assign({ upColor: COLORS.up, downColor: COLORS.down, borderVisible: false, wickUpColor: rgba(COLORS.up, 0.8), wickDownColor: rgba(COLORS.down, 0.8) }, base));
+    // rising candles hollow, falling candles filled: the direction does not depend on color alone
+    if (t === 'candles') series.price = charts.main.addCandlestickSeries(Object.assign({ upColor: rgba(COLORS.up, 0), downColor: COLORS.down, borderVisible: true, borderUpColor: COLORS.up, borderDownColor: COLORS.down, wickUpColor: COLORS.up, wickDownColor: COLORS.down }, base));
     else if (t === 'bars') series.price = charts.main.addBarSeries(Object.assign({ upColor: COLORS.up, downColor: COLORS.down, thinBars: true }, base));
     else if (t === 'line') series.price = charts.main.addLineSeries(Object.assign({ color: COLORS.up, lineWidth: 2, crosshairMarkerRadius: 3 }, base));
     else series.price = charts.main.addAreaSeries(Object.assign({ lineColor: COLORS.up, topColor: rgba(COLORS.up, 0.2), bottomColor: rgba(COLORS.up, 0), lineWidth: 2, crosshairMarkerRadius: 3 }, base));
@@ -350,7 +353,9 @@ window.Analysis = (() => {
     if (state.type === 'area') series.price.applyOptions({ lineColor: tone, topColor: rgba(tone, 0.2), bottomColor: rgba(tone, 0), priceLineColor: tone });
     if (state.type === 'line') series.price.applyOptions({ color: tone, priceLineColor: tone });
     const hasVol = c.some((k) => k.volume > 0);
-    series.volume.setData(on.vol && hasVol ? c.map((k) => ({ time: k.time, value: k.volume, color: k.close >= k.open ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.055)' })) : []);
+    // volume under candles or bars takes their direction at 40 % opacity; under a line it stays neutral
+    const volColor = (k) => (ohlc ? rgba(k.close >= k.open ? COLORS.up : COLORS.down, 0.4) : k.close >= k.open ? Theme.c.volUp : Theme.c.volDown);
+    series.volume.setData(on.vol && hasVol ? c.map((k) => ({ time: k.time, value: k.volume, color: volColor(k) })) : []);
     series.sma20.setData(on.sma20 ? lineData(Quant.sma(closes, 20)) : []);
     series.sma50.setData(on.sma50 ? lineData(Quant.sma(closes, 50)) : []);
     series.sma200.setData(on.sma200 ? lineData(Quant.sma(closes, 200)) : []);
@@ -369,7 +374,7 @@ window.Analysis = (() => {
     series.rsi.setData(on.rsi ? lineData(Quant.rsi(closes, 14)) : []);
     const m = Quant.macd(closes);
     series.macd.setData(on.macd ? lineData(m.macd) : []); series.macdS.setData(on.macd ? lineData(m.signal) : []);
-    series.macdH.setData(on.macd ? c.map((k, i) => (m.hist[i] == null ? { time: k.time } : { time: k.time, value: m.hist[i], color: m.hist[i] >= 0 ? 'rgba(63,185,80,.45)' : 'rgba(248,81,73,.45)' })) : []);
+    series.macdH.setData(on.macd ? c.map((k, i) => (m.hist[i] == null ? { time: k.time } : { time: k.time, value: m.hist[i], color: m.hist[i] >= 0 ? Theme.alpha(Theme.c.up, 0.45) : Theme.alpha(Theme.c.down, 0.45) })) : []);
     redrawDrawings();
     if (fit) { charts.main.timeScale().fitContent(); }
     // align the lower panes on the main chart once their size is known
@@ -445,7 +450,7 @@ window.Analysis = (() => {
   let priceLines = [], trendSeries = [];
   const rrOf = (d) => d.rr || 2;
   const targetOf = (d) => d.entry + (d.side === 'long' ? 1 : -1) * rrOf(d) * Math.abs(d.entry - d.stop);
-  const colorOf = (d) => d.color || (d.type === 'trend' ? '#c4b5ff' : COLORS.draw);
+  const colorOf = (d) => d.color || (d.type === 'trend' ? Theme.c.accent2 : COLORS.draw);
   const selDrawing = () => drawings.find((d) => d.id === selected) || null;
   // a trend line is shown only if its points fall in the loaded bars, so a line drawn on daily bars does not stretch a 5-minute chart
   const trendVisible = (d) => { const c = data.candles, t0 = Math.min(d.a.time, d.b.time), t1 = Math.max(d.a.time, d.b.time); return d.a.time !== d.b.time && t0 >= c[0].time && t1 <= c[c.length - 1].time + 300 * medianStep(); };
@@ -457,9 +462,9 @@ window.Analysis = (() => {
     drawings.forEach((d) => {
       const sel = d.id === selected, w = sel ? 1 : 0, nm = d.name ? d.name.trim() : '';
       if (d.type === 'hline') pl(d.price, colorOf(d), nm, 0, 1 + w);
-      if (d.type === 'fib') Quant.fibLevels(d.from, d.to).forEach((l) => pl(l.price, l.ratio === 0.618 || l.ratio === 0.5 ? '#d29922' : sel ? '#a0a0a0' : '#6b6b6b', (l.ratio === 1 && nm ? nm + ' · ' : '') + 'Fib ' + l.ratio, sel ? 0 : 2, 1));
+      if (d.type === 'fib') Quant.fibLevels(d.from, d.to).forEach((l) => pl(l.price, l.ratio === 0.618 || l.ratio === 0.5 ? Theme.c.warn : sel ? Theme.c.text2 : Theme.c.neutral, (l.ratio === 1 && nm ? nm + ' · ' : '') + 'Fib ' + l.ratio, sel ? 0 : 2, 1));
       if (d.type === 'position') {
-        pl(d.entry, '#e6e6e6', (nm ? nm + ' · ' : '') + (d.side === 'long' ? 'Long' : 'Short') + ' entry', 0, 2 + w);
+        pl(d.entry, Theme.c.text, (nm ? nm + ' · ' : '') + (d.side === 'long' ? 'Long' : 'Short') + ' entry', 0, 2 + w);
         pl(d.stop, COLORS.down, 'Stop −1R', sel ? 0 : 2, 1 + w);
         pl(targetOf(d), COLORS.up, `Target ${+rrOf(d).toFixed(2)}R`, sel ? 0 : 2, 1 + w);
       }
@@ -559,7 +564,7 @@ window.Analysis = (() => {
     const box = $('anDl'); if (!box) return;
     if (!drawings.length) { box.innerHTML = '<p class="empty">Use the tools on the left of the chart to draw. Click a drawing to select it, drag it to move it.</p>'; return; }
     box.innerHTML = drawings.map((d) => `<div class="an-dl${d.id === selected ? ' on' : ''}" data-id="${d.id}">
-        <i style="background:${d.type === 'position' ? (d.side === 'long' ? COLORS.up : COLORS.down) : d.type === 'fib' ? '#d29922' : colorOf(d)}"></i>
+        <i style="background:${d.type === 'position' ? (d.side === 'long' ? COLORS.up : COLORS.down) : d.type === 'fib' ? Theme.c.warn : colorOf(d)}"></i>
         <span><b>${esc(d.name || (d.type === 'position' ? (d.side === 'long' ? 'Long' : 'Short') : TYPE_NAME[d.type]))}</b><small>${esc(describe(d))}</small></span>
         <button data-del="${d.id}" title="Delete">×</button></div>`).join('');
     box.querySelectorAll('.an-dl').forEach((el) => (el.onclick = (e) => { if (e.target.dataset.del) removeDrawing(e.target.dataset.del); else select(el.dataset.id); }));
@@ -628,7 +633,7 @@ window.Analysis = (() => {
       ${wd ? sec('Seasonality by weekday', wdSvg(wd), 'Average daily return by weekday over the period.') : ''}`;
 
     const on = (id, ev, f) => { const el = $(id); if (el) el[ev] = f; };
-    on('anVpLines', 'onclick', () => { add({ type: 'hline', price: vp.poc, name: 'POC', color: '#facc15' }); add({ type: 'hline', price: vp.vah, name: 'VAH', color: '#8b7cf6' }); add({ type: 'hline', price: vp.val, name: 'VAL', color: '#8b7cf6' }); saveDrawings(); redrawDrawings(); renderDrawList(); });
+    on('anVpLines', 'onclick', () => { add({ type: 'hline', price: vp.poc, name: 'POC', color: Theme.c.yellow }); add({ type: 'hline', price: vp.vah, name: 'VAH', color: Theme.c.accent }); add({ type: 'hline', price: vp.val, name: 'VAL', color: Theme.c.accent }); saveDrawings(); redrawDrawings(); renderDrawList(); });
     on('anHz', 'oninput', (e) => { state.horizon = +e.target.value; save(); clearTimeout(hzTimer); hzTimer = setTimeout(() => (state.ind.mc ? render() : renderPanel()), 150); });
     on('anMcToggle', 'onclick', () => { state.ind.mc = !state.ind.mc; save(); render(); });
     ['anAcc', 'anRisk', 'anEntry', 'anStop'].forEach((id) => on(id, 'oninput', recalcSizer));
@@ -650,11 +655,11 @@ window.Analysis = (() => {
     let s = `<svg viewBox="0 0 ${W} ${H}" class="su-svg">`;
     cone.forEach((c, i) => {
       const x = X(i);
-      s += `<line x1="${x}" x2="${x}" y1="${Y(c.min)}" y2="${Y(c.max)}" stroke="#333"/><rect x="${x - 7}" y="${Y(c.p75)}" width="14" height="${Math.max(1, Y(c.p25) - Y(c.p75))}" fill="#1d1a2b" stroke="#3b2f6b"/>`;
-      s += `<line x1="${x - 7}" x2="${x + 7}" y1="${Y(c.median)}" y2="${Y(c.median)}" stroke="#8b7cf6"/><circle cx="${x}" cy="${Y(c.current)}" r="4" fill="#facc15"/>`;
+      s += `<line x1="${x}" x2="${x}" y1="${Y(c.min)}" y2="${Y(c.max)}" stroke="${Theme.c.line2}"/><rect x="${x - 7}" y="${Y(c.p75)}" width="14" height="${Math.max(1, Y(c.p25) - Y(c.p75))}" fill="${Theme.c.accentSoft}" stroke="${Theme.c.accentEdge}"/>`;
+      s += `<line x1="${x - 7}" x2="${x + 7}" y1="${Y(c.median)}" y2="${Y(c.median)}" stroke="${Theme.c.accent}"/><circle cx="${x}" cy="${Y(c.current)}" r="4" fill="${Theme.c.yellow}"/>`;
       s += `<text x="${x}" y="${H - 4}" text-anchor="middle" class="su-lbl">${c.window}b</text>`;
     });
-    return s + `<text x="4" y="12" class="su-lbl">vol</text><text x="${W - 4}" y="12" text-anchor="end" class="su-lbl" fill="#facc15">● now</text></svg>`;
+    return s + `<text x="4" y="12" class="su-lbl">vol</text><text x="${W - 4}" y="12" text-anchor="end" class="su-lbl" fill="${Theme.c.yellow}">● now</text></svg>`;
   }
   function histSvg(r) {
     if (r.length < 10) return '';
@@ -662,19 +667,19 @@ window.Analysis = (() => {
     const b = new Array(n).fill(0); r.forEach((x) => { const i = Math.floor((x - lo) / bw); if (i >= 0 && i < n) b[i]++; });
     const mx = Math.max(...b), X = (v) => 6 + ((v - lo) / (hi - lo)) * (W - 12), Y = (v) => H - 16 - (v / mx) * (H - 26);
     let s = `<svg viewBox="0 0 ${W} ${H}" class="su-svg">`;
-    b.forEach((v, i) => { const x0 = X(lo + i * bw); s += `<rect x="${x0}" y="${Y(v)}" width="${Math.max(1, X(lo + (i + 1) * bw) - x0 - 1)}" height="${H - 16 - Y(v)}" fill="${lo + (i + 0.5) * bw < 0 ? '#f85149' : '#3fb950'}" opacity="0.7"/>`; });
+    b.forEach((v, i) => { const x0 = X(lo + i * bw); s += `<rect x="${x0}" y="${Y(v)}" width="${Math.max(1, X(lo + (i + 1) * bw) - x0 - 1)}" height="${H - 16 - Y(v)}" fill="${lo + (i + 0.5) * bw < 0 ? Theme.c.down : Theme.c.up}" opacity="0.7"/>`; });
     // normal curve with the same mean / std, scaled to the counts
     const pts = []; for (let i = 0; i <= 60; i++) { const v = lo + (i / 60) * (hi - lo); pts.push(`${X(v)},${Y((r.length * bw / (sd * Math.sqrt(2 * Math.PI))) * Math.exp(-((v - m) ** 2) / (2 * sd * sd)))}`); }
-    s += `<polyline points="${pts.join(' ')}" fill="none" stroke="#c4b5ff" stroke-width="1.5"/>`;
-    return s + `<text x="${X(0)}" y="${H - 3}" text-anchor="middle" class="su-lbl">0</text><text x="${W - 4}" y="12" text-anchor="end" class="su-lbl" fill="#c4b5ff">normal</text></svg>`;
+    s += `<polyline points="${pts.join(' ')}" fill="none" stroke="${Theme.c.accent2}" stroke-width="1.5"/>`;
+    return s + `<text x="${X(0)}" y="${H - 3}" text-anchor="middle" class="su-lbl">0</text><text x="${W - 4}" y="12" text-anchor="end" class="su-lbl" fill="${Theme.c.accent2}">normal</text></svg>`;
   }
   function vpSvg(vp, last) {
     const W = 300, H = 150, mx = Math.max(...vp.bins.map((b) => b.volume)) || 1, bh = (H - 8) / vp.bins.length;
     let s = `<svg viewBox="0 0 ${W} ${H}" class="su-svg">`;
     vp.bins.slice().reverse().forEach((b, i) => {
       const inVA = b.from >= vp.val - 1e-9 && b.to <= vp.vah + 1e-9, isPoc = vp.poc >= b.from && vp.poc <= b.to;
-      s += `<rect x="70" y="${4 + i * bh}" width="${(b.volume / mx) * (W - 76)}" height="${Math.max(1, bh - 1)}" fill="${isPoc ? '#facc15' : inVA ? '#8b7cf6' : '#2a2a2a'}" opacity="${isPoc ? 0.9 : 0.75}"/>`;
-      if (last >= b.from && last <= b.to) s += `<line x1="66" x2="${W}" y1="${4 + i * bh + bh / 2}" y2="${4 + i * bh + bh / 2}" stroke="#e6e6e6" stroke-dasharray="3 3"/>`;
+      s += `<rect x="70" y="${4 + i * bh}" width="${(b.volume / mx) * (W - 76)}" height="${Math.max(1, bh - 1)}" fill="${isPoc ? Theme.c.yellow : inVA ? Theme.c.accent : Theme.c.line2}" opacity="${isPoc ? 0.9 : 0.75}"/>`;
+      if (last >= b.from && last <= b.to) s += `<line x1="66" x2="${W}" y1="${4 + i * bh + bh / 2}" y2="${4 + i * bh + bh / 2}" stroke="${Theme.c.text}" stroke-dasharray="3 3"/>`;
       if (i % 4 === 0) s += `<text x="64" y="${4 + i * bh + bh / 2 + 4}" text-anchor="end" class="su-lbl">${fmt((b.from + b.to) / 2)}</text>`;
     });
     return s + '</svg>';
@@ -683,8 +688,8 @@ window.Analysis = (() => {
     const days = wd.filter((d) => d.count > 0); if (!days.length) return '';
     const W = 300, H = 110, mx = Math.max(...days.map((d) => Math.abs(d.mean))) || 1, bw = (W - 20) / days.length, mid = (H - 18) / 2 + 4;
     const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    let s = `<svg viewBox="0 0 ${W} ${H}" class="su-svg"><line x1="10" x2="${W - 10}" y1="${mid}" y2="${mid}" stroke="#2a2a2a"/>`;
-    days.forEach((d, i) => { const h = (Math.abs(d.mean) / mx) * (mid - 8), x = 10 + i * bw; s += `<rect x="${x + 6}" y="${d.mean >= 0 ? mid - h : mid}" width="${bw - 12}" height="${Math.max(1, h)}" rx="2" fill="${d.mean >= 0 ? '#3fb950' : '#f85149'}" opacity="0.8"/><text x="${x + bw / 2}" y="${H - 3}" text-anchor="middle" class="su-lbl">${names[d.day]}</text>`; });
+    let s = `<svg viewBox="0 0 ${W} ${H}" class="su-svg"><line x1="10" x2="${W - 10}" y1="${mid}" y2="${mid}" stroke="${Theme.c.line2}"/>`;
+    days.forEach((d, i) => { const h = (Math.abs(d.mean) / mx) * (mid - 8), x = 10 + i * bw; s += `<rect x="${x + 6}" y="${d.mean >= 0 ? mid - h : mid}" width="${bw - 12}" height="${Math.max(1, h)}" rx="2" fill="${d.mean >= 0 ? Theme.c.up : Theme.c.down}" opacity="0.8"/><text x="${x + bw / 2}" y="${H - 3}" text-anchor="middle" class="su-lbl">${names[d.day]}</text>`; });
     return s + '</svg>';
   }
 

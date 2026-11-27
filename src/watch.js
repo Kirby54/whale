@@ -16,7 +16,7 @@ window.Watch = (() => {
     let box = $('toasts');
     if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
     const t = document.createElement('div');
-    t.className = 'toast' + (kind ? ' ' + kind : ''); t.innerHTML = html;
+    t.className = 'toast glass-menu' + (kind ? ' ' + kind : ''); t.innerHTML = html;
     t.onclick = () => t.remove();
     box.appendChild(t); setTimeout(() => t.remove(), ms);
   }

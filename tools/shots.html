@@ -19,7 +19,7 @@ const DEMO_ANSWER = {
 };
 try { localStorage.clear(); if (shot === 'brain-full' || shot === 'palette') localStorage.setItem('whale-aipanel', '0');
   // read by the Analysis tab when the app starts
-  if (shot === 'analysis') localStorage.setItem('whale-analysis', JSON.stringify({ symbol: 'BTC-USD', tf: '1Y', type: 'area', tab: 'chart', ptab: 'watch', ind: { sma50: true, vol: true } }));
+  if (shot === 'analysis') localStorage.setItem('whale-analysis', JSON.stringify({ symbol: 'BTC-USD', tf: '6M', type: 'candles', candlesDefault: true, tab: 'chart', ptab: 'watch', ind: { sma50: true, vol: true } }));
 } catch (e) {}
 f.onload = async () => {
   const w = f.contentWindow, d = w.document;

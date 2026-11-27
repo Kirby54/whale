@@ -64,7 +64,7 @@ Win rate, total and average R, profit factor, equity curve, and results by setup
 
 Type any symbol (`BTC`, `EURUSD`, `TSLA`, `gold`, `SPX`, `US30`…) or a command, Bloomberg style: `TSLA GP` (chart), `AAPL DES` (company), `NVDA N` (news), `ECO` (macro), `EQS` (screener), `CORR` (correlation), `GRID` (several charts), `BTC ALRT 70000` (price alert). Commands also work in the <kbd>Ctrl</kbd>+<kbd>K</kbd> palette.
 
-- **Chart:** a clean area, line, candle or OHLC bar chart from 5-minute to monthly bars, with SMA, EMA, Bollinger bands, VWAP, volume, RSI, MACD and a Monte Carlo cone, plus O/H/L/C under the mouse.
+- **Chart:** candles by default (hollow when the price rises, filled when it falls), or OHLC bars, area or line, from 5-minute to monthly bars, with SMA, EMA, Bollinger bands, VWAP, volume, RSI, MACD and a Monte Carlo cone, plus O/H/L/C under the mouse.
 - **Drawing tools:** levels, trend lines, Fibonacci, long and short positions (entry, stop, target in R), and a measure tool. Click a drawing to select it, drag its lines or ends to move it, name it, color it, set an alert on a level, or delete it with <kbd>Delete</kbd>.
 - **Watchlist and price alerts:** your markets with their daily move and a sparkline; alerts are checked every minute while Whale is open (sound, on-screen and system notification).
 - **Stats panel**, the numbers trading desks look at: realized and Parkinson volatility, volatility cone, expected move, Value at Risk, expected shortfall, drawdown, Sharpe, Sortino, return distribution, Hurst exponent, mean-reversion half-life, beta and correlation to a benchmark, volume profile, pivots, seasonality, and a position sizer with the Kelly fraction from your own journal.
@@ -104,7 +104,7 @@ Each setup gets its own page: a schematic chart showing how it looks (entry, sto
 | **AI classification** | One click fills in a note's type, tags, date, summary and trade properties, and links it to your other notes. Works on a single note or the whole vault. |
 | **Import** | Obsidian or Notion folders (Markdown), ChatGPT and Claude conversations (`conversations.json`), and broker trades as CSV (MT4/MT5, TradingView, Binance, IBKR…) with R computed for you. |
 | **Timeline** | All your notes month by month, filterable by type. |
-| **Native feel** | A dark glass design (frosted translucent panels over soft ambient light, solid surfaces when Windows asks for reduced transparency), built-in title bar, 3 logos to choose from, and a ~8 MB app. |
+| **Native feel** | Apple Liquid Glass style on pure black: clear glass with a liquid lens over the brain, frosted glass elsewhere, a light that follows the mouse along the glass edges, solid surfaces when Windows asks for reduced transparency. Built-in title bar, 3 logos to choose from, and a ~8 MB app. |
 
 ## AI, your choice
 

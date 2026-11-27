@@ -9,7 +9,7 @@ window.Desk = (() => {
   // each render gets a token, so an older request that finishes late never overwrites a newer view
   const begin = (el) => (el._tok = {});
   const alive = (el, tok) => el._tok === tok;
-  const tile = (label, value, sub, attrs = '') => `<div class="dk-tile"${attrs}><div class="l">${label}</div><div class="v">${value}</div>${sub != null ? `<div class="s">${sub}</div>` : ''}</div>`;
+  const tile = (label, value, sub, attrs = '', cls = '') => `<div class="dk-tile glass${cls ? ' ' + cls : ''}"${attrs}><div class="l">${label}</div><div class="v">${value}</div>${sub != null ? `<div class="s">${sub}</div>` : ''}</div>`;
   const kindLabel = { fx: 'a currency pair', crypto: 'a cryptocurrency', future: 'a futures contract', index: 'an index', stock: 'a stock' };
 
   /* ---------- Company: SEC filings ---------- */
@@ -52,10 +52,10 @@ window.Desk = (() => {
         ${tile('Debt / equity', fmt(r.debtToEquity, 2))}${tile('Cash', fmtBig(b.cash && b.cash.value))}${tile('Free cash flow', fmtBig(r.fcf), ly ? 'FY ' + ly.end.slice(0, 4) : '')}${tile('Shares', fmtBig(f.shares))}
       </div>
       <div class="dk-grid2">
-        <div class="dk-card"><h3>Quarterly revenue and net income</h3>${barsSvg(f.quarters, (q) => q.end.slice(2, 7) + (q.derived ? '*' : ''))}</div>
-        <div class="dk-card"><h3>Yearly revenue and net income</h3>${barsSvg(f.years, (y) => 'FY' + y.end.slice(2, 4))}</div>
+        <div class="dk-card glass"><h3>Quarterly revenue and net income</h3>${barsSvg(f.quarters, (q) => q.end.slice(2, 7) + (q.derived ? '*' : ''))}</div>
+        <div class="dk-card glass"><h3>Yearly revenue and net income</h3>${barsSvg(f.years, (y) => 'FY' + y.end.slice(2, 4))}</div>
       </div>
-      <div class="dk-card"><h3>Results by fiscal year</h3>${yearsTable(f.years)}</div>
+      <div class="dk-card glass"><h3>Results by fiscal year</h3>${yearsTable(f.years)}</div>
       <p class="dk-src">Source: SEC EDGAR (10-K and 10-Q filings). TTM = ${f.ttmFromQuarters ? 'last four quarters' : 'last fiscal year'}. Quarters marked * are the year minus its first three quarters. Not investment advice.</p>
     </div>`;
   }
@@ -64,15 +64,15 @@ window.Desk = (() => {
     if (!rows.length) return '<p class="dk-msg">No data in the filings.</p>';
     const W = 560, H = 200, left = 6, vals = rows.flatMap((r) => [r.revenue || 0, r.netIncome || 0]), max = Math.max(...vals, 0), min = Math.min(...vals, 0), span = max - min || 1;
     const Y = (v) => 22 + ((max - v) / span) * (H - 50), zero = Y(0), bw = (W - left) / rows.length;
-    let s = `<svg viewBox="0 0 ${W} ${H}" class="su-svg"><line x1="0" x2="${W}" y1="${zero}" y2="${zero}" stroke="#222"/>`;
+    let s = `<svg viewBox="0 0 ${W} ${H}" class="su-svg"><line x1="0" x2="${W}" y1="${zero}" y2="${zero}" stroke="${Theme.c.line2}"/>`;
     rows.forEach((r, i) => {
       const x = left + i * bw + bw * 0.14, w = bw * 0.34, op = r.derived ? 0.55 : 0.9;
       const bar = (v, c, dx) => `<rect x="${x + dx}" y="${Math.min(Y(v), zero)}" width="${w}" height="${Math.max(1, Math.abs(Y(v) - zero))}" fill="${c}" opacity="${op}" rx="2"/>`;
-      if (r.revenue != null) s += bar(r.revenue, '#8b7cf6', 0) + `<text x="${x + w / 2}" y="${Math.min(Y(r.revenue), zero) - 5}" text-anchor="middle" class="su-lbl" style="font-size:9.5px">${fmtBig(r.revenue)}</text>`;
-      if (r.netIncome != null) s += bar(r.netIncome, r.netIncome >= 0 ? '#3fb950' : '#f85149', w + 2);
+      if (r.revenue != null) s += bar(r.revenue, Theme.c.accent, 0) + `<text x="${x + w / 2}" y="${Math.min(Y(r.revenue), zero) - 5}" text-anchor="middle" class="su-lbl" style="font-size:9.5px">${fmtBig(r.revenue)}</text>`;
+      if (r.netIncome != null) s += bar(r.netIncome, r.netIncome >= 0 ? Theme.c.up : Theme.c.down, w + 2);
       s += `<text x="${x + w + 1}" y="${H - 8}" text-anchor="middle" class="su-lbl">${esc(label(r))}</text>`;
     });
-    return s + `</svg><div class="yc-legend"><span><i style="background:#8b7cf6"></i>Revenue</span><span><i style="background:#3fb950"></i>Net income</span></div>`;
+    return s + `</svg><div class="yc-legend"><span><i style="background:${Theme.c.accent}"></i>Revenue</span><span><i style="background:${Theme.c.up}"></i>Net income</span></div>`;
   }
   function yearsTable(years) {
     const { fmtBig, fmt, pct } = U(), ys = years.slice(-6);
@@ -125,10 +125,10 @@ window.Desk = (() => {
     return LC.createChart(box, {
       autoSize: true,
       localization: { locale: LOCALE, priceFormatter: (p) => U().fmt(p) },
-      layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#8a91a8', fontFamily: 'system-ui, -apple-system, Segoe UI, sans-serif', fontSize: 10.5, attributionLogo: false },
-      grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(255,255,255,0.035)' } },
+      layout: { background: { type: 'solid', color: 'transparent' }, textColor: Theme.c.text2, fontFamily: 'system-ui, -apple-system, Segoe UI, sans-serif', fontSize: 10.5, attributionLogo: false },
+      grid: { vertLines: { visible: false }, horzLines: { color: Theme.c.grid } },
       rightPriceScale: { borderVisible: false }, timeScale: { borderVisible: false },
-      crosshair: { vertLine: { color: 'rgba(255,255,255,0.2)', style: 3, labelBackgroundColor: '#1b1f33' }, horzLine: { color: 'rgba(255,255,255,0.2)', style: 3, labelBackgroundColor: '#1b1f33' } },
+      crosshair: { vertLine: { color: Theme.c.crosshair, style: 3, labelBackgroundColor: Theme.c.chartLabel }, horzLine: { color: Theme.c.crosshair, style: 3, labelBackgroundColor: Theme.c.chartLabel } },
     });
   }
   function grid(el) {
@@ -180,14 +180,14 @@ window.Desk = (() => {
     const at = (s, back) => { const c = closes(s); return c.length > back ? c[c.length - 1 - back] : null; };
     const anyDemo = syms.some((s) => got[s] && got[s].demo);
     $('mcMarkets').innerHTML = `<div class="dk-grid2">
-        <div class="dk-card"><h3>US yield curve</h3>${curveSvg(Market.RATES.map((r) => ({ name: r.name, now: at(r.sym, 0), m1: at(r.sym, 21), y1: at(r.sym, 250) })))}</div>
-        <div class="dk-card"><h3>Curve signals</h3><div class="dk-tiles" style="margin:0">
+        <div class="dk-card glass"><h3>US yield curve</h3>${curveSvg(Market.RATES.map((r) => ({ name: r.name, now: at(r.sym, 0), m1: at(r.sym, 21), y1: at(r.sym, 250) })))}</div>
+        <div class="dk-card glass"><h3>Curve signals</h3><div class="dk-tiles" style="margin:0">
           ${tile('10Y − 3M spread', at('^TNX', 0) != null && at('^IRX', 0) != null ? fmt(at('^TNX', 0) - at('^IRX', 0), 2) + ' pts' : '—', at('^TNX', 0) - at('^IRX', 0) < 0 ? '<span class="dn">inverted: often seen before recessions</span>' : 'normal: long rates above short rates')}
           ${tile('10Y yield, 1 month', at('^TNX', 0) != null && at('^TNX', 21) != null ? `${(at('^TNX', 0) - at('^TNX', 21) >= 0 ? '+' : '') + fmt((at('^TNX', 0) - at('^TNX', 21)) * 100, 0)} bp` : '—', 'change in basis points')}
           ${tile('VIX', fmt(at('^VIX', 0), 1), at('^VIX', 0) > 25 ? '<span class="dn">high fear</span>' : at('^VIX', 0) < 15 ? 'calm markets' : 'normal')}
         </div></div></div>
       <div class="dk-tiles">${Market.GAUGES.map((g) => { const c = closes(g.sym), m = c.length > 21 ? c[c.length - 1] / c[c.length - 22] - 1 : null;
-        return tile(esc(g.name), c.length ? fmt(c[c.length - 1]) : '—', `<span class="${m >= 0 ? 'up' : 'dn'}">${m != null ? sgn(m) + ' 1M' : ''}</span>${U().sparkSvg(c.slice(-120), 70, 22)}`, ` class="dk-tile click" data-sym="${esc(g.sym)}"`); }).join('')}</div>
+        return tile(esc(g.name), c.length ? fmt(c[c.length - 1]) : '—', `<span class="${m >= 0 ? 'up' : 'dn'}">${m != null ? sgn(m) + ' 1M' : ''}</span>${U().sparkSvg(c.slice(-120), 70, 22)}`, ` data-sym="${esc(g.sym)}"`, 'click'); }).join('')}</div>
       ${anyDemo ? '<p class="dk-src">Some markets show demo data: live prices for indices, rates and commodities work in the desktop app.</p>' : ''}`;
     $('mcMarkets').querySelectorAll('[data-sym]').forEach((t) => (t.onclick = () => go('chart', t.dataset.sym)));
     economy(el, tok);
@@ -197,14 +197,14 @@ window.Desk = (() => {
     if (!all.length) return '<p class="dk-msg">No rates data.</p>';
     const W = 520, H = 190, lo = Math.min(...all) - 0.2, hi = Math.max(...all) + 0.2, X = (i) => 40 + i * ((W - 80) / (pts.length - 1)), Y = (v) => 16 + ((hi - v) / (hi - lo)) * (H - 46);
     const line = (key, color, dash) => { const p = pts.map((x, i) => (x[key] != null ? `${X(i)},${Y(x[key])}` : null)).filter(Boolean); return p.length > 1 ? `<polyline points="${p.join(' ')}" fill="none" stroke="${color}" stroke-width="${key === 'now' ? 2.2 : 1.4}"${dash ? ' stroke-dasharray="4 4"' : ''}/>` : ''; };
-    let s = `<svg viewBox="0 0 ${W} ${H}" class="su-svg">` + line('y1', '#444', true) + line('m1', '#777', true) + line('now', '#a68bff');
-    pts.forEach((p, i) => { s += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" class="su-lbl">${p.name}</text>`; if (p.now != null) s += `<circle cx="${X(i)}" cy="${Y(p.now)}" r="3.5" fill="#a68bff"/><text x="${X(i)}" y="${Y(p.now) - 9}" text-anchor="middle" class="su-num">${fmt(p.now, 2)}%</text>`; });
-    return s + `</svg><div class="yc-legend"><span><i style="background:#a68bff"></i>Today</span><span><i style="background:#777"></i>1 month ago</span><span><i style="background:#444"></i>1 year ago</span></div>`;
+    let s = `<svg viewBox="0 0 ${W} ${H}" class="su-svg">` + line('y1', Theme.c.neutralDim, true) + line('m1', Theme.c.text2, true) + line('now', Theme.c.accent2);
+    pts.forEach((p, i) => { s += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" class="su-lbl">${p.name}</text>`; if (p.now != null) s += `<circle cx="${X(i)}" cy="${Y(p.now)}" r="3.5" fill="${Theme.c.accent2}"/><text x="${X(i)}" y="${Y(p.now) - 9}" text-anchor="middle" class="su-num">${fmt(p.now, 2)}%</text>`; });
+    return s + `</svg><div class="yc-legend"><span><i style="background:${Theme.c.accent2}"></i>Today</span><span><i style="background:${Theme.c.text2}"></i>1 month ago</span><span><i style="background:${Theme.c.neutralDim}"></i>1 year ago</span></div>`;
   }
   async function economy(el, tok) {
     const box = $('mcEco'); if (!box) return;
     if (!U().keys().fred) {
-      box.innerHTML = `<div class="dk-card" style="margin-top:4px"><h3>US economy (FRED)</h3><p style="margin:0 0 10px;color:var(--tx2);font-size:13.5px">Inflation, unemployment, Fed rate, GDP growth, jobless claims, credit spreads and more, from the St. Louis Fed. It needs your own free FRED key: create an account, copy the key, and paste it in Data sources.</p>
+      box.innerHTML = `<div class="dk-card glass" style="margin-top:4px"><h3>US economy (FRED)</h3><p style="margin:0 0 10px;color:var(--tx2);font-size:13.5px">Inflation, unemployment, Fed rate, GDP growth, jobless claims, credit spreads and more, from the St. Louis Fed. It needs your own free FRED key: create an account, copy the key, and paste it in Data sources.</p>
         <div class="an-btns"><button class="an-ghost ai" id="ecoGet">Get a free key</button><button class="an-ghost" id="ecoAdd">Add my key</button></div></div>`;
       $('ecoGet').onclick = () => Store.openUrl('https://fredaccount.stlouisfed.org/apikeys');
       $('ecoAdd').onclick = dataSources;
@@ -218,7 +218,7 @@ window.Desk = (() => {
     const tiles = Market.MACRO.map((m, i) => {
       const r = res[i]; if (r.status !== 'fulfilled' || !r.value.length) return tile(esc(m.name), '—', 'not available');
       const v = r.value, last = v[v.length - 1], prev = v[v.length - 2], d = prev ? last.value - prev.value : null;
-      return tile(esc(m.name), `${fmt(last.value, 2)} <small style="font-size:11px;color:var(--tx3)">${esc(m.unit)}</small>`, `<span>${esc(last.date)}${d != null ? ` · <span class="${d >= 0 ? 'up' : 'dn'}">${d >= 0 ? '+' : ''}${fmt(d, 2)}</span>` : ''}</span>${U().sparkSvg(v.slice(-60).map((x) => x.value), 70, 22, '#a68bff')}`);
+      return tile(esc(m.name), `${fmt(last.value, 2)} <small style="font-size:11px;color:var(--tx3)">${esc(m.unit)}</small>`, `<span>${esc(last.date)}${d != null ? ` · <span class="${d >= 0 ? 'up' : 'dn'}">${d >= 0 ? '+' : ''}${fmt(d, 2)}</span>` : ''}</span>${U().sparkSvg(v.slice(-60).map((x) => x.value), 70, 22, Theme.c.accent2)}`);
     });
     const failed = res.every((r) => r.status === 'rejected');
     box.innerHTML = `<div class="dk-h" style="margin-top:8px"><h2 style="font-size:16px">US economy</h2><span class="dk-sub">FRED, Federal Reserve Bank of St. Louis</span></div>` +
@@ -263,7 +263,7 @@ window.Desk = (() => {
     const chg = (v) => `<span class="${v >= 0 ? 'up' : 'dn'}">${sgn(v, 1)}</span>`;
     el.innerHTML = `<div class="dk">${head}
       <table class="dk-table"><tr>${cols.map(([k, l]) => `<th class="sort${st.sort === k ? ' on' : ''}" data-sort="${k}">${l}${st.sort === k ? (st.dir > 0 ? ' ↑' : ' ↓') : ''}</th>`).join('')}<th>60 days</th></tr>
-      ${shown.map((r) => `<tr class="click" data-sym="${esc(r.sym)}"><td><b>${esc(Market.displayName(r.sym))}</b> <small style="color:#555;font-family:var(--mono)">${esc(r.sym)}</small>${r.demo ? ' <span class="wl-demo">demo</span>' : ''}</td>
+      ${shown.map((r) => `<tr class="click" data-sym="${esc(r.sym)}"><td><b>${esc(Market.displayName(r.sym))}</b> <small style="color:${Theme.c.text2};font-family:var(--mono)">${esc(r.sym)}</small>${r.demo ? ' <span class="wl-demo">demo</span>' : ''}</td>
         <td>${fmt(r.last)}</td><td>${chg(r.chg1d)}</td><td>${chg(r.chg1w)}</td><td>${chg(r.chg1m)}</td><td>${chg(r.ytd)}</td><td>${pct(r.vol, 0)}</td>
         <td class="${r.rsi > 70 ? 'dn' : r.rsi < 30 ? 'up' : ''}">${fmt(r.rsi, 0)}</td><td>${chg(r.vsSma200)}</td><td>${pct(r.fromHigh, 1)}</td><td>${fmt(r.z, 2)}</td><td>${U().sparkSvg(r.closes, 80, 20)}</td></tr>`).join('')}</table>
       ${shown.length ? '' : '<p class="dk-msg">No market matches this filter.</p>'}
@@ -287,14 +287,14 @@ window.Desk = (() => {
     const ok = syms.filter((s) => got[s] && !got[s].demo && got[s].candles.length > 30), left = syms.filter((s) => !ok.includes(s));
     if (ok.length < 2) { $('cmBody').innerHTML = `<p class="dk-msg">${Store.desktop ? 'Not enough data for these markets.' : 'Live prices for most markets work in the desktop app (crypto works here).'}</p>`; return; }
     const m = Quant.correlationMatrix(ok.map((s) => ({ sym: s, candles: got[s].candles, key: (t) => Market.dayKey(t, Market.kindOf(s)) })));
-    const color = (c) => (c == null ? '#111' : c >= 0 ? `rgba(139,124,246,${0.12 + 0.75 * c})` : `rgba(248,81,73,${0.12 + 0.75 * -c})`);
+    const color = (c) => (c == null ? Theme.c.surface : c >= 0 ? Theme.alpha(Theme.c.accent, 0.12 + 0.75 * c) : Theme.alpha(Theme.c.down, 0.12 + 0.75 * -c));
     const pairs = [];
     for (let i = 0; i < ok.length; i++) for (let j = i + 1; j < ok.length; j++) if (m.m[i][j] != null) pairs.push([ok[i], ok[j], m.m[i][j]]);
     pairs.sort((a, b) => b[2] - a[2]);
     const pairList = (ps) => ps.map(([a, b, c]) => `<div class="al-row"><span>${esc(Market.displayName(a))} · ${esc(Market.displayName(b))}</span><b>${c.toFixed(2)}</b></div>`).join('');
     $('cmBody').innerHTML = `<div style="overflow:auto"><table class="cm"><tr><th></th>${ok.map((s) => `<th>${esc(Market.displayName(s))}</th>`).join('')}</tr>
-      ${ok.map((s, i) => `<tr><th class="r">${esc(Market.displayName(s))}</th>${ok.map((t, j) => `<td class="${i === j ? 'self' : ''}" style="background:${i === j ? '#0d0d0d' : color(m.m[i][j])}" title="${esc(s)} / ${esc(t)} · ${m.n[i][j]} common days">${i === j ? '1' : m.m[i][j] == null ? '—' : m.m[i][j].toFixed(2)}</td>`).join('')}</tr>`).join('')}</table></div>
-      <div class="dk-grid2" style="margin-top:16px"><div class="dk-card"><h3>Move together the most</h3>${pairList(pairs.slice(0, 6))}</div><div class="dk-card"><h3>Best diversifiers</h3>${pairList(pairs.slice(-6).reverse())}</div></div>
+      ${ok.map((s, i) => `<tr><th class="r">${esc(Market.displayName(s))}</th>${ok.map((t, j) => `<td class="${i === j ? 'self' : ''}" style="background:${i === j ? Theme.c.surface : color(m.m[i][j])}" title="${esc(s)} / ${esc(t)} · ${m.n[i][j]} common days">${i === j ? '1' : m.m[i][j] == null ? '—' : m.m[i][j].toFixed(2)}</td>`).join('')}</tr>`).join('')}</table></div>
+      <div class="dk-grid2" style="margin-top:16px"><div class="dk-card glass"><h3>Move together the most</h3>${pairList(pairs.slice(0, 6))}</div><div class="dk-card glass"><h3>Best diversifiers</h3>${pairList(pairs.slice(-6).reverse())}</div></div>
       <p class="dk-src">1 = always move together, 0 = unrelated, −1 = move opposite. Markets are matched by calendar day.${left.length ? ` Left out (no live data): ${esc(left.join(', '))}.` : ''}</p>`;
   }
 

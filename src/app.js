@@ -11,7 +11,8 @@ const dirty = new Set(); // notes with changes not yet saved to disk (pending, r
 const TYPE_DIR = { trade: 'Trades', setup: 'Setups', asset: 'Assets', emotion: 'Emotions' };
 const TYPE_LABEL = { trade: 'Trade', setup: 'Setup', asset: 'Asset', emotion: 'Emotion / mistake', conversation: 'AI conversation', note: 'Note' };
 const LABELS = { type: 'Type', asset: 'Asset', setup: 'Setup', side: 'Side', entry: 'Entry', stop: 'Stop loss', exit: 'Exit', result: 'Result', market: 'Market', tags: 'Tags', date: 'Date', source: 'Source', pnl: 'P&L', quantity: 'Quantity', summary: 'Summary' };
-const TYPE_COLOR = { setup: '#58a6ff', asset: '#bc8cff', emotion: '#d29922', conversation: '#39c5cf' };
+// colors come from the theme tokens (style.css)
+const TYPE_COLOR = { get setup() { return Theme.c.blue; }, get asset() { return Theme.c.violet; }, get emotion() { return Theme.c.warn; }, get conversation() { return Theme.c.cyan; } };
 const IMG_EXT = Core.IMG_EXT;
 const LOCALE = 'en-US';
 
@@ -128,8 +129,8 @@ function parse(name) {
 function allParsed() { const o = {}; for (const n of Object.keys(notes)) o[n] = parse(n); return o; }
 function rOf(p) { return Core.rOf(p.props); }
 function colorOf(p) {
-  if (p.type === 'trade') { const r = rOf(p); return r == null ? '#888888' : r >= 0 ? '#3fb950' : '#f85149'; }
-  return TYPE_COLOR[p.type] || '#9a9a9a';
+  if (p.type === 'trade') { const r = rOf(p); return r == null ? Theme.c.neutral : r >= 0 ? Theme.c.up : Theme.c.down; }
+  return TYPE_COLOR[p.type] || Theme.c.text2;
 }
 // Date of a note: "date" property, else YYYY-MM-DD at the start of the name, else the file date
 function noteDate(name, p) {
@@ -199,13 +200,13 @@ async function loadImages(root) {
 }
 function propsHtml(p) {
   const ks = Object.keys(p.props); if (!ks.length) return '';
-  return '<div class="props">' + ks.map((k) => {
+  return '<div class="props glass">' + ks.map((k) => {
     let v = esc(p.props[k]);
-    if (k === 'result') { const r = rOf(p); if (r != null) v = `<span class="tag" style="background:${r >= 0 ? '#12301b' : '#3a1414'};color:${r >= 0 ? '#56d364' : '#ff7b72'}">${r > 0 ? '+' : ''}${r} R</span>`; }
-    else if (k === 'side' && v) v = `<span class="tag" style="background:#1d1a2b;color:#a68bff">${v}</span>`;
+    if (k === 'result') { const r = rOf(p); if (r != null) v = `<span class="tag ${r >= 0 ? 'up' : 'dn'}">${r > 0 ? '+' : ''}${r} R</span>`; }
+    else if (k === 'side' && v) v = `<span class="tag acc">${v}</span>`;
     else if ((k === 'asset' || k === 'setup') && resolve(p.props[k] || '')) v = `<a class="il" data-n="${esc(resolve(p.props[k]))}">${v}</a>`;
     else if (k === 'type') v = TYPE_LABEL[p.props[k]] || v;
-    else if (k === 'tags' && v) v = p.props[k].split(',').map((t) => t.trim()).filter(Boolean).map((t) => `<span class="tag" style="background:#161b22;color:#8b949e;margin-right:4px">#${esc(t)}</span>`).join('');
+    else if (k === 'tags' && v) v = p.props[k].split(',').map((t) => t.trim()).filter(Boolean).map((t) => `<span class="tag muted">#${esc(t)}</span>`).join('');
     return `<div class="prow"><div class="pk">${LABELS[k] || esc(k)}</div><div class="pv">${v}</div></div>`;
   }).join('') + '</div>';
 }
@@ -267,7 +268,7 @@ function renderLinks(p) {
   const back = Object.keys(P).filter((n) => n !== cur && P[n].links.includes(cur));
   $('blc').textContent = back.length; $('olc').textContent = p.links.length;
   const snip = (n) => { const b = P[n].body; const i = b.toLowerCase().indexOf('[[' + cur.toLowerCase()); const s = i < 0 ? b.slice(0, 80) : b.slice(Math.max(0, i - 30), i + 50); return esc(s.replace(/\n/g, ' ')); };
-  const row = (n, extra) => `<div class="bl" data-n="${esc(n)}"><span style="display:flex;align-items:center;gap:8px"><i class="dot" style="background:${notes[n] ? colorOf(P[n]) : '#444'}"></i>${esc(n)}</span>${extra || ''}</div>`;
+  const row = (n, extra) => `<div class="bl glass" data-n="${esc(n)}"><span style="display:flex;align-items:center;gap:8px"><i class="dot" style="background:${notes[n] ? colorOf(P[n]) : Theme.c.neutralDim}"></i>${esc(n)}</span>${extra || ''}</div>`;
   $('backlinks').innerHTML = back.map((n) => row(n, `<small>${snip(n)}</small>`)).join('') || '<div class="empty">No backlinks</div>';
   $('outlinks').innerHTML = p.links.map((n) => row(n)).join('') || '<div class="empty">No links</div>';
 }
@@ -333,6 +334,7 @@ async function open(n) {
 const VIEWS = { note: 'btnNotes', graph: 'btnGraph', dash: 'btnDash', timeline: 'btnTimeline', table: 'btnTable', ask: 'btnAsk', setups: 'btnSetups', analysis: 'btnAnalysis' };
 function setView(v) {
   view = v;
+  document.body.classList.toggle('home', v === 'graph'); // the brain is the home: clear glass with the lens
   Object.keys(VIEWS).forEach((k) => { $(k + 'view').classList.toggle('on', k === v); $(VIEWS[k]).classList.toggle('on', k === v); });
   $('btnMode').style.display = $('btnDel').style.display = $('btnClassify').style.display = v === 'note' ? '' : 'none';
   $('right').classList.toggle('hide', v !== 'note');
@@ -414,11 +416,11 @@ function renderDash() {
   $('dash').innerHTML = `<h1 style="margin:0;font-size:26px">Dashboard</h1>
   <div style="color:var(--tx3)">Computed from the <code style="font-family:var(--mono)">result</code> property (in R) of your trade notes.</div>
   <div class="cards">
-    <div class="card"><div class="l">Trades</div><div class="v">${st.count}</div></div>
-    <div class="card"><div class="l">Win rate</div><div class="v">${st.winrate}%</div></div>
-    <div class="card"><div class="l">Total</div><div class="v" style="color:${st.total >= 0 ? 'var(--win)' : 'var(--loss)'}">${fmt(st.total)}</div></div>
-    <div class="card"><div class="l">Average R</div><div class="v">${st.avg != null ? fmt(st.avg) : '—'}</div></div>
-    <div class="card"><div class="l">Profit factor</div><div class="v">${st.profitFactor != null ? st.profitFactor : '—'}</div></div>
+    <div class="card glass"><div class="l">Trades</div><div class="v">${st.count}</div></div>
+    <div class="card glass"><div class="l">Win rate</div><div class="v">${st.winrate}%</div></div>
+    <div class="card glass"><div class="l">Total</div><div class="v" style="color:${st.total >= 0 ? 'var(--win)' : 'var(--loss)'}">${fmt(st.total)}</div></div>
+    <div class="card glass"><div class="l">Average R</div><div class="v">${st.avg != null ? fmt(st.avg) : '—'}</div></div>
+    <div class="card glass"><div class="l">Profit factor</div><div class="v">${st.profitFactor != null ? st.profitFactor : '—'}</div></div>
   </div>
   <h3 style="margin:0 0 8px">Equity curve (in R)</h3><canvas id="eq"></canvas>
   ${st.count ? tbl(st.bySetup, 'setup') + tbl(st.byAsset, 'asset') : '<p class="empty">Fill in "result" on your trades to see stats.</p>'}`;
@@ -429,10 +431,10 @@ function renderDash() {
   const mn = pts.reduce((a, b) => Math.min(a, b), 0), mx = pts.reduce((a, b) => Math.max(a, b), 0), pad = 20;
   const sx = (i) => pad + (i * (W - 2 * pad)) / Math.max(1, pts.length - 1);
   const sy = (v) => Hh - pad - ((v - mn) * (Hh - 2 * pad)) / Math.max(1e-9, mx - mn);
-  x.strokeStyle = '#222'; x.setLineDash([3, 4]); x.beginPath(); x.moveTo(pad, sy(0)); x.lineTo(W - pad, sy(0)); x.stroke(); x.setLineDash([]);
-  x.strokeStyle = '#8b6cef'; x.lineWidth = 2; x.beginPath();
+  x.strokeStyle = Theme.c.line2; x.setLineDash([3, 4]); x.beginPath(); x.moveTo(pad, sy(0)); x.lineTo(W - pad, sy(0)); x.stroke(); x.setLineDash([]);
+  x.strokeStyle = Theme.c.accent; x.lineWidth = 2; x.beginPath();
   pts.forEach((v, i) => (i ? x.lineTo(sx(i), sy(v)) : x.moveTo(sx(i), sy(v)))); x.stroke();
-  pts.forEach((v, i) => { if (!i) return; x.fillStyle = rs[i - 1] >= 0 ? '#3fb950' : '#f85149'; x.beginPath(); x.arc(sx(i), sy(v), 3.5, 0, 7); x.fill(); });
+  pts.forEach((v, i) => { if (!i) return; x.fillStyle = rs[i - 1] >= 0 ? Theme.c.up : Theme.c.down; x.beginPath(); x.arc(sx(i), sy(v), 3.5, 0, 7); x.fill(); });
 }
 
 /* ---------- Events ---------- */

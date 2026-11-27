@@ -2,7 +2,7 @@
    (stats, equity curve, result distribution, mistakes, trades). Also the trade card shown on trade notes. */
 window.Setups = (() => {
   let selected = null;
-  const GREEN = '#3fb950', RED = '#f85149', VIOLET = '#a68bff', GREY = '#6b6b6b';
+  const GREEN = Theme.c.up, RED = Theme.c.down, VIOLET = Theme.c.accent2, GREY = Theme.c.neutral;
   const fmtR = (r) => (r == null ? '—' : (r > 0 ? '+' : '') + Math.round(r * 100) / 100 + ' R');
   const svgEsc = (s) => esc(String(s));
 
@@ -95,7 +95,7 @@ window.Setups = (() => {
     const X = (i) => left + (i + 0.5) * ((right - left) / n), Y = (v) => bottom - ((v - lo) / (hi - lo)) * (bottom - top);
     const cw = Math.max(4, ((right - left) / n) * 0.56);
     let s = `<svg viewBox="0 0 ${width} ${height}" class="su-svg" role="img" aria-label="${svgEsc(tpl.label)} example chart">`;
-    for (let g = 0; g <= 4; g++) { const y = top + (g * (bottom - top)) / 4; s += `<line x1="${left}" x2="${right}" y1="${y}" y2="${y}" stroke="#161616"/>`; }
+    for (let g = 0; g <= 4; g++) { const y = top + (g * (bottom - top)) / 4; s += `<line x1="${left}" x2="${right}" y1="${y}" y2="${y}" stroke="${Theme.c.line}"/>`; }
     // risk / reward zones from the entry candle
     const x0 = X(tpl.entryIdx) - cw, x1 = right;
     s += `<rect x="${x0}" y="${Y(target)}" width="${x1 - x0}" height="${Y(tpl.entry) - Y(target)}" fill="${GREEN}" opacity="0.10"/>`;
@@ -116,15 +116,15 @@ window.Setups = (() => {
     // volume
     if (tpl.volume) {
       const vb = height - 18;
-      C.forEach((k, i) => { const v = (tpl.volume[i] || 0.6 + (Math.abs(k.c - k.o) / 12)) ; const h = Math.min(volH - 4, v * 11); s += `<rect x="${X(i) - cw / 2}" y="${vb - h}" width="${cw}" height="${h}" fill="${tpl.volume[i] ? VIOLET : '#2a2a2a'}"/>`; });
+      C.forEach((k, i) => { const v = (tpl.volume[i] || 0.6 + (Math.abs(k.c - k.o) / 12)) ; const h = Math.min(volH - 4, v * 11); s += `<rect x="${X(i) - cw / 2}" y="${vb - h}" width="${cw}" height="${h}" fill="${tpl.volume[i] ? VIOLET : Theme.c.line2}"/>`; });
       s += `<text x="${right + 6}" y="${height - 22}" class="su-lbl">Volume</text>`;
     }
     // entry / stop / target
     const line = (v, color, label, dash) => `<line x1="${x0}" x2="${right}" y1="${Y(v)}" y2="${Y(v)}" stroke="${color}" stroke-width="1.4" ${dash ? 'stroke-dasharray="4 3"' : ''}/><text x="${right + 6}" y="${Y(v) + 4}" class="su-lbl" fill="${color}">${label}</text>`;
-    s += line(target, GREEN, `Target ${fmtR(tR)}`, true) + line(tpl.entry, '#e6e6e6', 'Entry', false) + line(tpl.stop, RED, 'Stop −1 R', true);
-    s += `<path d="M${X(tpl.entryIdx)} ${Y(tpl.entry) + 16} l-6 9 h12 z" fill="#e6e6e6"/>`;
+    s += line(target, GREEN, `Target ${fmtR(tR)}`, true) + line(tpl.entry, Theme.c.text, 'Entry', false) + line(tpl.stop, RED, 'Stop −1 R', true);
+    s += `<path d="M${X(tpl.entryIdx)} ${Y(tpl.entry) + 16} l-6 9 h12 z" fill="${Theme.c.text}"/>`;
     // numbered explanation marks
-    tpl.marks.forEach((m) => { s += `<circle cx="${X(m.i)}" cy="${Y(m.y)}" r="9" fill="#0b0b0b" stroke="${VIOLET}"/><text x="${X(m.i)}" y="${Y(m.y) + 4}" text-anchor="middle" class="su-num">${m.n}</text>`; });
+    tpl.marks.forEach((m) => { s += `<circle cx="${X(m.i)}" cy="${Y(m.y)}" r="9" fill="${Theme.c.bg}" stroke="${VIOLET}"/><text x="${X(m.i)}" y="${Y(m.y) + 4}" text-anchor="middle" class="su-num">${m.n}</text>`; });
     return s + '</svg>';
   }
 
@@ -133,7 +133,7 @@ window.Setups = (() => {
     if (!rs.length) return '<p class="empty">No results yet.</p>';
     const W = 420, H = 150, pad = 14, pts = [0]; rs.forEach((r) => pts.push(pts[pts.length - 1] + r));
     const mn = Math.min(0, ...pts), mx = Math.max(0, ...pts), X = (i) => pad + (i * (W - 2 * pad)) / Math.max(1, pts.length - 1), Y = (v) => H - pad - ((v - mn) * (H - 2 * pad)) / Math.max(1e-9, mx - mn);
-    let s = `<svg viewBox="0 0 ${W} ${H}" class="su-svg"><line x1="${pad}" x2="${W - pad}" y1="${Y(0)}" y2="${Y(0)}" stroke="#2a2a2a" stroke-dasharray="3 4"/>`;
+    let s = `<svg viewBox="0 0 ${W} ${H}" class="su-svg"><line x1="${pad}" x2="${W - pad}" y1="${Y(0)}" y2="${Y(0)}" stroke="${Theme.c.line2}" stroke-dasharray="3 4"/>`;
     s += `<polyline points="${pts.map((v, i) => `${X(i)},${Y(v)}`).join(' ')}" fill="none" stroke="${VIOLET}" stroke-width="2"/>`;
     pts.forEach((v, i) => { if (i) s += `<circle cx="${X(i)}" cy="${Y(v)}" r="3.2" fill="${rs[i - 1] >= 0 ? GREEN : RED}"/>`; });
     return s + '</svg>';
@@ -175,14 +175,14 @@ window.Setups = (() => {
     let s = `<svg viewBox="0 0 ${W} ${H}" class="su-svg" role="img" aria-label="Trade: entry, stop and exit">`;
     s += `<rect x="${xE}" y="${Math.min(Y(g.entry), Y(tgt))}" width="${right - xE}" height="${Math.abs(Y(tgt) - Y(g.entry))}" fill="${GREEN}" opacity="0.12"/>`;
     s += `<rect x="${xE}" y="${Math.min(Y(g.entry), Y(g.stop))}" width="${right - xE}" height="${Math.abs(Y(g.stop) - Y(g.entry))}" fill="${RED}" opacity="0.12"/>`;
-    s += lbl(g.stop, RED, `Stop ${g.stop} · −1 R`) + lbl(g.entry, '#e6e6e6', `Entry ${g.entry}`);
+    s += lbl(g.stop, RED, `Stop ${g.stop} · −1 R`) + lbl(g.entry, Theme.c.text, `Entry ${g.entry}`);
     if (g.exit != null) s += lbl(g.exit, g.r >= 0 ? GREEN : RED, `Exit ${g.exit} · ${fmtR(g.r)}`);
     else s += lbl(tgt, GREEN, `2R target ${Math.round(tgt * 1e4) / 1e4}`);
     s += `<polyline points="${path.map((q) => q.join(',')).join(' ')}" fill="none" stroke="${VIOLET}" stroke-width="2"/>`;
-    s += `<circle cx="${xE}" cy="${Y(g.entry)}" r="4" fill="#e6e6e6"/>`;
+    s += `<circle cx="${xE}" cy="${Y(g.entry)}" r="4" fill="${Theme.c.text}"/>`;
     if (g.exit != null) s += `<circle cx="${right}" cy="${Y(g.exit)}" r="4" fill="${g.r >= 0 ? GREEN : RED}"/>`;
     s += `<text x="${left}" y="${top + 6}" class="su-lbl">${g.side} · risk ${Math.round(g.risk * 1e4) / 1e4}</text></svg>`;
-    return `<div class="su-trade">${s}</div>`;
+    return `<div class="su-trade glass">${s}</div>`;
   }
 
   /* ---------- View ---------- */
@@ -221,13 +221,13 @@ window.Setups = (() => {
             ${s.note ? `<button class="tbtn" data-n="${svgEsc(s.note)}">Open note</button>` : `<button class="tbtn" data-n="${svgEsc(s.name)}">Create note</button>`}
           </div>
           <div class="su-grid">
-            <div class="card su-card">
+            <div class="card su-card glass">
               <div class="su-card-h"><h3>How it looks</h3><span class="chip on">${svgEsc(tpl.label)} pattern</span></div>
               ${schematic(kind, { targetR: kind === 'reversal' ? undefined : avgWin ? Math.max(1, Math.min(4, avgWin)) : undefined })}
               <ol class="su-steps">${tpl.steps.map((t) => `<li>${svgEsc(t)}</li>`).join('')}</ol>
               <div class="note">Schematic example of the pattern, not real prices${avgWin && kind !== 'reversal' ? ` · target set to your average win (${fmtR(avgWin)})` : ''}.</div>
             </div>
-            <div class="card su-card">
+            <div class="card su-card glass">
               <h3>Rules</h3>
               ${sec.rules.length ? `<ol class="su-rules">${sec.rules.map((r) => `<li>${inline(r)}</li>`).join('')}</ol>` : '<p class="empty">No rules yet. Add a "## Rules" list to the setup note.</p>'}
               <h3 style="margin-top:18px">Common mistakes</h3>
@@ -235,16 +235,16 @@ window.Setups = (() => {
             </div>
           </div>
           <div class="cards">
-            <div class="card"><div class="l">Trades</div><div class="v">${s.trades.length}</div></div>
-            <div class="card"><div class="l">Win rate</div><div class="v">${s.st.count ? s.st.winrate + '%' : '—'}</div></div>
-            <div class="card"><div class="l">Total</div><div class="v" style="color:${s.st.total >= 0 ? 'var(--win)' : 'var(--loss)'}">${s.st.count ? fmtR(s.st.total) : '—'}</div></div>
-            <div class="card"><div class="l">Average R</div><div class="v">${fmtR(s.st.avg)}</div></div>
-            <div class="card"><div class="l">Profit factor</div><div class="v">${s.st.profitFactor ?? '—'}</div></div>
-            <div class="card"><div class="l">Long / short win rate</div><div class="v" style="font-size:20px">${wr(longs)} / ${wr(shorts)}</div></div>
+            <div class="card glass"><div class="l">Trades</div><div class="v">${s.trades.length}</div></div>
+            <div class="card glass"><div class="l">Win rate</div><div class="v">${s.st.count ? s.st.winrate + '%' : '—'}</div></div>
+            <div class="card glass"><div class="l">Total</div><div class="v" style="color:${s.st.total >= 0 ? 'var(--win)' : 'var(--loss)'}">${s.st.count ? fmtR(s.st.total) : '—'}</div></div>
+            <div class="card glass"><div class="l">Average R</div><div class="v">${fmtR(s.st.avg)}</div></div>
+            <div class="card glass"><div class="l">Profit factor</div><div class="v">${s.st.profitFactor ?? '—'}</div></div>
+            <div class="card glass"><div class="l">Long / short win rate</div><div class="v" style="font-size:20px">${wr(longs)} / ${wr(shorts)}</div></div>
           </div>
           <div class="su-grid2">
-            <div class="card su-card"><h3>Equity curve</h3>${equitySvg(sorted)}</div>
-            <div class="card su-card"><h3>Result distribution</h3>${distributionSvg(s.rs)}</div>
+            <div class="card su-card glass"><h3>Equity curve</h3>${equitySvg(sorted)}</div>
+            <div class="card su-card glass"><h3>Result distribution</h3>${distributionSvg(s.rs)}</div>
           </div>
           <h3 style="margin:22px 0 8px">Trades</h3>
           ${trades.length ? `<table><tr><th>Date</th><th>Trade</th><th>Asset</th><th>Side</th><th>Result</th><th></th></tr>

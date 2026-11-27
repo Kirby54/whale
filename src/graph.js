@@ -2,7 +2,7 @@
    Every note is a point, colored by its folder; the dust around it draws the silhouette.
    Folder legend (hover / click to highlight) and time histogram (draggable window). */
 window.Graph = (() => {
-  const PALETTE = ['#8b7cf6', '#2dd4bf', '#4f8cf7', '#facc15', '#fb923c', '#4ade80', '#f472b6', '#f87171', '#22d3ee', '#a3e635', '#e879f9', '#94a3b8'];
+  const PALETTE = [Theme.c.accent, Theme.c.teal, Theme.c.blue2, Theme.c.yellow, Theme.c.orange2, Theme.c.green2, Theme.c.pink, Theme.c.red2, Theme.c.cyan2, Theme.c.lime, Theme.c.magenta, Theme.c.slate];
   let N_CLOUD = 22000; // grows with the vault
   let BODY_N = 0;     // the first BODY_N points are the body (skin + pleats); fins and flukes come after
   let R, S, C, G, pts, linkLines, webLines, ray, inited = false, running = false;
@@ -175,7 +175,7 @@ window.Graph = (() => {
     pts = new THREE.Points(makeGeometry(), mat); G.add(pts);
     G.add(makeDust(40000));
     const lineMat = (opacity, color) => new THREE.ShaderMaterial({
-      uniforms: { uTime: mat.uniforms.uTime, uOpacity: { value: opacity }, uColor: { value: new THREE.Color(color || '#ffffff') }, uUseColor: { value: color ? 1 : 0 } },
+      uniforms: { uTime: mat.uniforms.uTime, uOpacity: { value: opacity }, uColor: { value: new THREE.Color(color || Theme.c.textHi) }, uUseColor: { value: color ? 1 : 0 } },
       vertexShader: `attribute vec3 color; varying vec3 vC; varying float vG; ${SWIM}
         void main(){ vC=color; vG=sweep(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(swim(position),1.0); }`,
       fragmentShader: `uniform float uOpacity; uniform vec3 uColor; uniform float uUseColor; varying vec3 vC; varying float vG;
@@ -186,7 +186,7 @@ window.Graph = (() => {
     webLines = new THREE.LineSegments(new THREE.BufferGeometry(), lineMat(0.3));
     G.add(webLines);
     // Links of the hovered note, brighter
-    linkLines = new THREE.LineSegments(new THREE.BufferGeometry(), lineMat(0.85, '#c4b5ff'));
+    linkLines = new THREE.LineSegments(new THREE.BufferGeometry(), lineMat(0.85, Theme.c.accent2));
     G.add(linkLines);
 
     new ResizeObserver(resize).observe(wrap);
@@ -327,7 +327,7 @@ window.Graph = (() => {
     const pos = [], col = [], seen = new Set();
     Object.keys(noteAt).forEach((n) => {
       const i = noteAt[n], a = cloud[i];
-      const c = folders[folderOfPt[i]] ? folders[folderOfPt[i]].color : new THREE.Color('#888888');
+      const c = folders[folderOfPt[i]] ? folders[folderOfPt[i]].color : new THREE.Color(Theme.c.neutral);
       parse(n).links.forEach((m) => {
         const j = noteAt[m];
         if (j == null || j === i) return;
@@ -357,7 +357,7 @@ window.Graph = (() => {
     if (!pts) return;
     const col = pts.geometry.attributes.acolor.array, size = pts.geometry.attributes.asize.array, al = pts.geometry.attributes.aalpha.array;
     const active = hoverFolder != null ? hoverFolder : selFolder != null ? folders.findIndex((f) => f.name === selFolder) : -1;
-    const grey = new THREE.Color('#6b6b6b');
+    const grey = new THREE.Color(Theme.c.neutral);
     for (let i = 0; i < N_CLOUD; i++) {
       const fi = folderOfPt[i]; const c = fi >= 0 && folders[fi] ? folders[fi].color : grey;
       const isNote = nameOfPt[i] !== undefined;
@@ -427,10 +427,10 @@ window.Graph = (() => {
     if (range) bins.forEach((b, i) => { if (b.to >= range[0] && b.from <= range[1]) { if (i0 < 0) i0 = i; i1 = i; } });
     bins.forEach((b, i) => {
       const h = Math.max(b.count ? 3 : 1, (b.count / mx) * (H - 6));
-      x.fillStyle = range ? (i >= i0 && i <= i1 ? '#e5e5e5' : '#4a4a4a') : '#8a8a8a';
+      x.fillStyle = range ? (i >= i0 && i <= i1 ? Theme.c.text : Theme.c.neutralDim) : Theme.c.text2;
       x.fillRect(i * bw + 0.5, H - h, Math.max(1, bw - 1.5), h);
     });
-    if (range && i0 >= 0) { x.strokeStyle = '#e5e5e5'; x.lineWidth = 1; x.strokeRect(i0 * bw + 0.5, 0.5, (i1 - i0 + 1) * bw - 1, H - 1); }
+    if (range && i0 >= 0) { x.strokeStyle = Theme.c.text; x.lineWidth = 1; x.strokeRect(i0 * bw + 0.5, 0.5, (i1 - i0 + 1) * bw - 1, H - 1); }
     const fmt = (d) => new Date(d + 'T12:00:00').toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' });
     const nIn = range ? Object.keys(dateOfPt).filter((k) => inRange(+k)).length : Object.keys(nameOfPt).length;
     $('ghistlabel').textContent = range ? `${fmt(range[0])} → ${fmt(range[1])} · ${nIn} notes` : `${fmt(bins[0].from)} → ${fmt(bins[bins.length - 1].to)} · double-click: all`;

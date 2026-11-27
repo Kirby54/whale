@@ -121,3 +121,22 @@
     $('logoOk').onclick = Modal.close;
   };
 })();
+
+/* ---------- Light on glass: the edge highlight follows the mouse ---------- */
+(() => {
+  if (!window.matchMedia || !matchMedia('(hover: hover)').matches) return;
+  const SEL = '.card, .dk-tile, .dk-card, .bl, .props, .su-trade, #glegend, #ghistwrap, #apOpen, .toast, .pbox, .an-pop, .an-sugg, #more, .an-edit, .tbtn, .an-ghost, .chip, .nl, .an-seg button, .an-rail button, #openPalette';
+  let raf = 0, last = null;
+  // the pointer position is written as --mx / --my on the element under the mouse and on up to two glass parents
+  const paint = () => {
+    raf = 0;
+    let el = last && last.target instanceof Element ? last.target.closest(SEL) : null;
+    for (let n = 0; el && n < 3; n++) {
+      const r = el.getBoundingClientRect();
+      el.style.setProperty('--mx', (last.clientX - r.left).toFixed(0) + 'px');
+      el.style.setProperty('--my', (last.clientY - r.top).toFixed(0) + 'px');
+      el = el.parentElement && el.parentElement.closest(SEL);
+    }
+  };
+  document.addEventListener('pointermove', (e) => { last = e; if (!raf) raf = requestAnimationFrame(paint); }, { passive: true });
+})();
